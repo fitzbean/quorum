@@ -16,6 +16,7 @@ import {
   ROLE_VISIBILITY_STORAGE_KEY,
 } from './constants';
 import { formatAttachmentsForContext } from './utils/fileParser';
+import { buildPresetModelMap, fetchOpenRouterCatalog } from './utils/modelCatalog';
 import type {
   Message,
   ActiveParticipant,
@@ -26,6 +27,8 @@ import type {
   NoteEntry,
   NoteTakerConfig,
   RoleVisibility,
+  ModelOption,
+  ModelTier,
 } from './types';
 
 const STORAGE_KEY = 'slotmind_api_key';
@@ -69,6 +72,17 @@ function loadRoleVisibility(): RoleVisibility {
   }
 }
 
+function getFallbackModelId(models: ModelOption[], preferredTier?: ModelTier): string | null {
+  if (models.length === 0) return null;
+
+  if (preferredTier) {
+    const tierMatch = models.find((model) => model.tier === preferredTier);
+    if (tierMatch) return tierMatch.id;
+  }
+
+  return models[0]?.id ?? null;
+}
+
 export default function App() {
   const [apiKey, setApiKey] = useState<string>(() => {
     const stored = localStorage.getItem(STORAGE_KEY) || '';
@@ -97,6 +111,7 @@ export default function App() {
   const [systemInstructions, setSystemInstructions] = useState('');
   const [interjectText, setInterjectText] = useState('');
   const [roleVisibility, setRoleVisibility] = useState<RoleVisibility>(() => loadRoleVisibility());
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const interjectionRef = useRef<string[]>([]);
@@ -120,6 +135,46 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(ROLE_VISIBILITY_STORAGE_KEY, JSON.stringify(roleVisibility));
   }, [roleVisibility]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchOpenRouterCatalog()
+      .then((models) => {
+        if (!cancelled) {
+          setAvailableModels(models);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load OpenRouter catalog', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (availableModels.length === 0) return;
+
+    const modelIds = new Set(availableModels.map((model) => model.id));
+    const defaultFallback = getFallbackModelId(availableModels, 'balanced') ?? getFallbackModelId(availableModels);
+    const noteFallback = getFallbackModelId(availableModels, 'budget') ?? defaultFallback;
+
+    if (!defaultFallback) return;
+
+    setParticipants((prev) =>
+      prev.map((participant) =>
+        modelIds.has(participant.selectedModel)
+          ? participant
+          : { ...participant, selectedModel: defaultFallback }
+      )
+    );
+
+    if (noteFallback && !modelIds.has(noteTakerConfigRef.current.selectedModel)) {
+      setNoteTakerConfig((prev) => ({ ...prev, selectedModel: noteFallback }));
+    }
+  }, [availableModels]);
 
   const { generateMessage, generateNote, stopGeneration } = useOpenRouter({
     apiKey,
@@ -192,7 +247,10 @@ export default function App() {
     );
   }, []);
 
-  const handlePresetApply = useCallback((models: Record<string, string>, presetKey: string) => {
+  const handlePresetApply = useCallback((tier: ModelTier, presetKey: string) => {
+    const models = buildPresetModelMap(availableModels, tier);
+    if (Object.keys(models).length === 0) return;
+
     setParticipants((prev) =>
       prev.map((p) => ({
         ...p,
@@ -205,7 +263,7 @@ export default function App() {
     }
 
     setSelectedModelPreset(presetKey);
-  }, []);
+  }, [availableModels]);
 
   const handleApplyPanelPreset = useCallback((panelPreset: PanelPreset) => {
     const newParticipants: ActiveParticipant[] = [];
@@ -510,6 +568,7 @@ export default function App() {
             config={noteTakerConfig}
             onConfigChange={(partial) => setNoteTakerConfig((prev) => ({ ...prev, ...partial }))}
             onClearNotes={() => setNotes([])}
+            models={availableModels}
           />
         </div>
       </div>
@@ -679,6 +738,7 @@ export default function App() {
             selectedModelPreset={selectedModelPreset}
             roleVisibility={roleVisibility}
             onToggleRoleVisibility={handleToggleRoleVisibility}
+            availableModels={availableModels}
           />
         </div>
 
@@ -694,6 +754,7 @@ export default function App() {
             onModelChange={handleModelChange}
             onApplyPanelPreset={handleApplyPanelPreset}
             selectedPanelPreset={selectedPanelPreset}
+            models={availableModels}
           />
         </div>
       </div>

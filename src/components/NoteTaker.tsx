@@ -1,24 +1,27 @@
 import { useRef, useEffect, useState } from 'react';
 import { ChevronDown, Trash2, Copy, Check, NotebookPen } from 'lucide-react';
-import type { NoteEntry, NoteDetailLevel, NoteTakerConfig } from '../types';
-import { OPENROUTER_MODELS, NOTE_DETAIL_LEVELS } from '../constants';
+import type { NoteEntry, NoteDetailLevel, NoteTakerConfig, ModelOption } from '../types';
+import { NOTE_DETAIL_LEVELS } from '../constants';
+import { MODEL_TIER_ORDER } from '../utils/modelCatalog';
 
 interface NoteTakerProps {
   notes: NoteEntry[];
   config: NoteTakerConfig;
   onConfigChange: (config: Partial<NoteTakerConfig>) => void;
   onClearNotes: () => void;
+  models: ModelOption[];
 }
 
 const TIER_LABELS: Record<string, string> = {
   free: '🆓 Free',
   budget: '💚 Budget',
-  mid: '💛 Mid',
+  balanced: '⚖️ Balanced',
   premium: '🟠 Premium',
   flagship: '🔴 Flagship',
+  'bleeding-edge': '🔬 Bleeding Edge',
 };
 
-export function NoteTaker({ notes, config, onConfigChange, onClearNotes }: NoteTakerProps) {
+export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models }: NoteTakerProps) {
   const notesEndRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
@@ -41,7 +44,7 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes }: NoteT
     });
   };
 
-  const groupedModels = OPENROUTER_MODELS.reduce<Record<string, typeof OPENROUTER_MODELS>>(
+  const groupedModels = models.reduce<Record<string, ModelOption[]>>(
     (acc, m) => {
       if (!acc[m.tier]) acc[m.tier] = [];
       acc[m.tier].push(m);
@@ -50,8 +53,8 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes }: NoteT
     {}
   );
 
-  const currentModel = OPENROUTER_MODELS.find((m) => m.id === config.selectedModel);
-  const tierOrder = ['free', 'budget', 'mid', 'premium', 'flagship', 'bleeding-edge'];
+  const currentModel = models.find((m) => m.id === config.selectedModel);
+  const tierOrder = MODEL_TIER_ORDER;
 
   return (
     <div className="flex flex-col h-full bg-gray-900/60 border-t border-gray-700/50">

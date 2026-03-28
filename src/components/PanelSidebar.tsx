@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { MODEL_PRESETS, DISCUSSION_PRESETS, PARTICIPANT_PRESETS } from '../constants';
-import type { ActiveParticipant, Preset, RoleVisibility, PanelMember } from '../types';
+import type { ActiveParticipant, Preset, RoleVisibility, PanelMember, ModelOption, ModelTier } from '../types';
+import { getModelsForTier, MODEL_TIER_ORDER } from '../utils/modelCatalog';
 import { Zap, Settings, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface PanelSidebarProps {
   participants: ActiveParticipant[];
-  onPresetApply: (models: Record<string, string>, presetKey: string) => void;
+  onPresetApply: (tier: ModelTier, presetKey: string) => void;
   selectedPreset: Preset | null;
   onSelectDiscussionPreset: (preset: Preset) => void;
   currentSpeakerId: string | null;
@@ -23,6 +24,7 @@ interface PanelSidebarProps {
   selectedModelPreset: string | null;
   roleVisibility: RoleVisibility;
   onToggleRoleVisibility: (role: PanelMember) => void;
+  availableModels: ModelOption[];
 }
 
 type ConfigTab = 'discussion' | 'models';
@@ -46,6 +48,7 @@ export function PanelSidebar({
   selectedModelPreset,
   roleVisibility,
   onToggleRoleVisibility,
+  availableModels,
 }: PanelSidebarProps) {
   const [topicOpen, setTopicOpen] = useState(true);
   const [configOpen, setConfigOpen] = useState(true);
@@ -241,11 +244,12 @@ export function PanelSidebar({
                 <div className="grid grid-cols-2 gap-1">
                   {Object.entries(MODEL_PRESETS).map(([key, preset]) => {
                     const isSelected = selectedModelPreset === key;
+                    const count = getModelsForTier(availableModels, preset.targetTier).length;
                     return (
                       <button
                         key={key}
-                        onClick={() => onPresetApply(preset.models, key)}
-                        disabled={isRunning}
+                        onClick={() => onPresetApply(preset.targetTier, key)}
+                        disabled={isRunning || count === 0}
                         title={preset.description}
                         className={`text-left px-2 py-1.5 rounded-lg text-xs transition-all disabled:opacity-50 ${
                           isSelected
@@ -255,7 +259,7 @@ export function PanelSidebar({
                       >
                         <div className="font-medium text-[11px]">{preset.emoji} {preset.label}</div>
                         <div className="text-[9px] text-gray-500 mt-0.5 leading-tight truncate">
-                          {preset.description.split(',')[0]}
+                          {count > 0 ? `${count} models available` : 'No models available'}
                         </div>
                         {isSelected && (
                           <div className="text-[9px] text-amber-300 mt-0.5 font-semibold">✓ Active</div>
@@ -263,6 +267,9 @@ export function PanelSidebar({
                       </button>
                     );
                   })}
+                </div>
+                <div className="mt-2 px-0.5 text-[9px] text-gray-600">
+                  {MODEL_TIER_ORDER.map((tier) => `${MODEL_PRESETS[tier].emoji} ${MODEL_PRESETS[tier].label}`).join(' · ')}
                 </div>
               </div>
             )}

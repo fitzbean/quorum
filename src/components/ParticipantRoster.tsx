@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { PARTICIPANT_PRESETS, OPENROUTER_MODELS, PANEL_PRESETS } from '../constants';
-import type { ActiveParticipant, ParticipantPreset, PanelPreset } from '../types';
+import { PARTICIPANT_PRESETS, PANEL_PRESETS } from '../constants';
+import type { ActiveParticipant, ParticipantPreset, PanelPreset, ModelOption, ModelTier } from '../types';
+import { formatModelPricePerThousand, MODEL_TIER_ORDER } from '../utils/modelCatalog';
 
 interface ParticipantRosterProps {
   participants: ActiveParticipant[];
@@ -13,6 +14,7 @@ interface ParticipantRosterProps {
   onModelChange: (instanceId: string, modelId: string) => void;
   onApplyPanelPreset: (preset: PanelPreset) => void;
   selectedPanelPreset: string | null;
+  models: ModelOption[];
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -26,7 +28,7 @@ const CATEGORY_LABELS: Record<string, { label: string; emoji: string }> = {
 const TIER_COLORS: Record<string, string> = {
   free:            'text-gray-400',
   budget:          'text-green-400',
-  mid:             'text-blue-400',
+  balanced:        'text-blue-400',
   premium:         'text-purple-400',
   flagship:        'text-amber-400',
   'bleeding-edge': 'text-fuchsia-400',
@@ -43,6 +45,7 @@ export function ParticipantRoster({
   onModelChange,
   onApplyPanelPreset,
   selectedPanelPreset,
+  models,
 }: ParticipantRosterProps) {
   const [showSpawner, setShowSpawner] = useState(false);
   const [showPanelPresets, setShowPanelPresets] = useState(false);
@@ -54,6 +57,11 @@ export function ParticipantRoster({
   const filteredPresets = spawnerCategory === 'all'
     ? PARTICIPANT_PRESETS
     : PARTICIPANT_PRESETS.filter((p) => p.category === spawnerCategory);
+
+  const selectedModelTier = (selectedModelId: string): ModelTier | null => {
+    const match = models.find((model) => model.id === selectedModelId);
+    return match?.tier ?? null;
+  };
 
   const roleCounts: Record<string, number> = {};
 
@@ -290,24 +298,20 @@ export function ParticipantRoster({
                         disabled={isRunning}
                         className="w-full bg-gray-900 border border-gray-700 rounded-lg text-[11px] text-gray-200 px-2 py-1.5 focus:outline-none focus:border-purple-500 disabled:opacity-50"
                       >
-                        {['free', 'budget', 'mid', 'premium', 'flagship', 'bleeding-edge'].map((tier) => {
-                          const tierModels = OPENROUTER_MODELS.filter((m) => m.tier === tier);
-                          if (tierModels.length === 0) return null;
-                          const tierLabel = { free: '🆓 Free', budget: '💚 Budget', mid: '💙 Mid', premium: '💜 Premium', flagship: '🌟 Flagship', 'bleeding-edge': '🔬 Bleeding Edge' }[tier];
-                          return (
-                            <optgroup key={tier} label={tierLabel || tier}>
-                              {tierModels.map((m) => (
-                                <option key={m.id} value={m.id}>
-                                  {m.name} — ${m.pricing.prompt}/1K in
-                                </option>
-                              ))}
-                            </optgroup>
-                          );
-                        })}
+                        {(() => {
+                          const tier = selectedModelTier(p.selectedModel);
+                          const tierModels = models.filter((m) => m.tier === tier);
+
+                          return tierModels.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name} — {formatModelPricePerThousand(m.pricing.prompt)}/1K in
+                            </option>
+                          ));
+                        })()}
                       </select>
                       {/* Tier badge */}
                       {(() => {
-                        const model = OPENROUTER_MODELS.find((m) => m.id === p.selectedModel);
+                        const model = models.find((m) => m.id === p.selectedModel);
                         return model ? (
                           <p className={`text-[10px] mt-1 ${TIER_COLORS[model.tier]}`}>
                             {model.description} · {model.contextLength.toLocaleString()} ctx

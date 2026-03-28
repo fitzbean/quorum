@@ -62,7 +62,29 @@ export interface ModelOption {
   description: string;
   contextLength: number;
   pricing: { prompt: number; completion: number };
-  tier: 'free' | 'budget' | 'mid' | 'premium' | 'flagship' | 'bleeding-edge';
+  tier: ModelTier;
+  architecture?: {
+    modality?: string;
+    input_modalities?: string[];
+    output_modalities?: string[];
+    tokenizer?: string;
+    instruct_type?: string;
+  };
+  topProvider?: {
+    contextLength?: number;
+    maxCompletionTokens?: number;
+    isModerated?: boolean;
+  };
+  createdAt?: string;
+}
+
+export type ModelTier = 'free' | 'budget' | 'balanced' | 'premium' | 'flagship' | 'bleeding-edge';
+
+export interface ModelPresetDefinition {
+  label: string;
+  emoji: string;
+  description: string;
+  targetTier: ModelTier;
 }
 
 // Template for a type of participant (from the library)
