@@ -24,11 +24,12 @@ const CATEGORY_LABELS: Record<string, { label: string; emoji: string }> = {
 };
 
 const TIER_COLORS: Record<string, string> = {
-  free:     'text-gray-400',
-  budget:   'text-green-400',
-  mid:      'text-blue-400',
-  premium:  'text-purple-400',
-  flagship: 'text-amber-400',
+  free:            'text-gray-400',
+  budget:          'text-green-400',
+  mid:             'text-blue-400',
+  premium:         'text-purple-400',
+  flagship:        'text-amber-400',
+  'bleeding-edge': 'text-fuchsia-400',
 };
 
 export function ParticipantRoster({
@@ -289,10 +290,10 @@ export function ParticipantRoster({
                         disabled={isRunning}
                         className="w-full bg-gray-900 border border-gray-700 rounded-lg text-[11px] text-gray-200 px-2 py-1.5 focus:outline-none focus:border-purple-500 disabled:opacity-50"
                       >
-                        {['free', 'budget', 'mid', 'premium', 'flagship'].map((tier) => {
+                        {['free', 'budget', 'mid', 'premium', 'flagship', 'bleeding-edge'].map((tier) => {
                           const tierModels = OPENROUTER_MODELS.filter((m) => m.tier === tier);
                           if (tierModels.length === 0) return null;
-                          const tierLabel = { free: '🆓 Free', budget: '💚 Budget', mid: '💙 Mid', premium: '💜 Premium', flagship: '🌟 Flagship' }[tier];
+                          const tierLabel = { free: '🆓 Free', budget: '💚 Budget', mid: '💙 Mid', premium: '💜 Premium', flagship: '🌟 Flagship', 'bleeding-edge': '🔬 Bleeding Edge' }[tier];
                           return (
                             <optgroup key={tier} label={tierLabel || tier}>
                               {tierModels.map((m) => (

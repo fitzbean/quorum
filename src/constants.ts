@@ -1,4 +1,4 @@
-import type { ModelOption, ParticipantPreset, Preset, PanelPreset, NoteDetailLevel } from './types';
+import type { ModelOption, ParticipantPreset, Preset, PanelPreset, NoteDetailLevel, RoleVisibility, PanelMember } from './types';
 
 export const NOTE_TAKER_DEFAULT_MODEL = 'google/gemini-2.0-flash-001';
 
@@ -163,6 +163,55 @@ export const OPENROUTER_MODELS: ModelOption[] = [
     pricing: { prompt: 3.5, completion: 10.5 },
     tier: 'flagship',
   },
+  // Bleeding Edge
+  {
+    id: 'openai/gpt-4.1',
+    name: 'GPT-4.1',
+    description: "OpenAI's latest flagship model, 1M context",
+    contextLength: 1047576,
+    pricing: { prompt: 2, completion: 8 },
+    tier: 'bleeding-edge',
+  },
+  {
+    id: 'openai/o4-mini',
+    name: 'o4-mini',
+    description: "OpenAI's latest compact reasoning model",
+    contextLength: 200000,
+    pricing: { prompt: 1.1, completion: 4.4 },
+    tier: 'bleeding-edge',
+  },
+  {
+    id: 'anthropic/claude-opus-4-5',
+    name: 'Claude Opus 4.5',
+    description: "Anthropic's most capable model",
+    contextLength: 200000,
+    pricing: { prompt: 15, completion: 75 },
+    tier: 'bleeding-edge',
+  },
+  {
+    id: 'anthropic/claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
+    description: "Anthropic's latest balanced model",
+    contextLength: 200000,
+    pricing: { prompt: 3, completion: 15 },
+    tier: 'bleeding-edge',
+  },
+  {
+    id: 'google/gemini-2.5-pro-preview-03-25',
+    name: 'Gemini 2.5 Pro',
+    description: "Google's most capable model with deep thinking",
+    contextLength: 1048576,
+    pricing: { prompt: 1.25, completion: 10 },
+    tier: 'bleeding-edge',
+  },
+  {
+    id: 'google/gemini-2.5-flash-preview',
+    name: 'Gemini 2.5 Flash',
+    description: "Google's fastest next-gen model",
+    contextLength: 1048576,
+    pricing: { prompt: 0.15, completion: 0.6 },
+    tier: 'bleeding-edge',
+  },
   {
     id: 'x-ai/grok-3',
     name: 'Grok 3',
@@ -189,7 +238,7 @@ export const PARTICIPANT_PRESETS: ParticipantPreset[] = [
     description: 'Guides discussion, synthesizes insights, keeps things moving',
     systemPrompt: `You are the Moderator of a high-level AI panel discussion focused on casino slot machine game design. Your role is to:
 - ALWAYS open by explicitly restating the EXACT topic/brief and discussion type provided. Quote or paraphrase it directly so every panelist is laser-focused on it.
-- Before anyone else speaks, frame what specific questions or angles the panel should address FOR THIS TOPIC.
+- Only restate the topic as an opening statement FOR THIS TOPIC.
 - Direct each panelist by name to respond to a specific facet of the topic from their expertise.
 - If any response drifts away from the specific topic, call it out and redirect immediately.
 - Synthesize insights back to the original topic brief — not generic slot design theory.
@@ -481,6 +530,15 @@ Flag legal risks immediately. Clarify what's permissible by jurisdiction. Be the
 Challenge the panel when designs feel exploitative. Advocate for player-first design. Under 200 words. Empathetic, outspoken chatroom voice.`,
   },
 ];
+
+export const ROLE_VISIBILITY_STORAGE_KEY = 'slotmind_role_visibility';
+
+export const DEFAULT_ROLE_VISIBILITY: RoleVisibility = PARTICIPANT_PRESETS.reduce((acc, preset) => {
+  acc[preset.role] = true;
+  return acc;
+}, {} as RoleVisibility);
+
+export const PARTICIPANT_PRESET_ROLES = PARTICIPANT_PRESETS.map((preset) => preset.role) as PanelMember[];
 
 // ─── Default panel (first load) ─────────────────────────────────────────────
 

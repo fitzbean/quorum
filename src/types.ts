@@ -17,6 +17,8 @@ export type PanelMember =
   | 'data_scientist'
   | 'monetization';
 
+export type RoleVisibility = Record<PanelMember, boolean>;
+
 export type NoteDetailLevel = 'brief' | 'standard' | 'detailed' | 'verbatim';
 
 export interface NoteEntry {
@@ -60,7 +62,7 @@ export interface ModelOption {
   description: string;
   contextLength: number;
   pricing: { prompt: number; completion: number };
-  tier: 'free' | 'budget' | 'mid' | 'premium' | 'flagship';
+  tier: 'free' | 'budget' | 'mid' | 'premium' | 'flagship' | 'bleeding-edge';
 }
 
 // Template for a type of participant (from the library)

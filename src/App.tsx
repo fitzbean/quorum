@@ -12,6 +12,8 @@ import {
   DISCUSSION_PRESETS,
   NOTE_TAKER_DEFAULT_MODEL,
   DEFAULT_PANEL_INSTANCE_IDS,
+  DEFAULT_ROLE_VISIBILITY,
+  ROLE_VISIBILITY_STORAGE_KEY,
 } from './constants';
 import { formatAttachmentsForContext } from './utils/fileParser';
 import type {
@@ -23,6 +25,7 @@ import type {
   Attachment,
   NoteEntry,
   NoteTakerConfig,
+  RoleVisibility,
 } from './types';
 
 const STORAGE_KEY = 'slotmind_api_key';
@@ -55,6 +58,17 @@ function buildDefaultPanel(): ActiveParticipant[] {
   }).filter(Boolean) as ActiveParticipant[];
 }
 
+function loadRoleVisibility(): RoleVisibility {
+  try {
+    const raw = localStorage.getItem(ROLE_VISIBILITY_STORAGE_KEY);
+    if (!raw) return DEFAULT_ROLE_VISIBILITY;
+    const parsed = JSON.parse(raw) as Partial<RoleVisibility>;
+    return { ...DEFAULT_ROLE_VISIBILITY, ...parsed };
+  } catch {
+    return DEFAULT_ROLE_VISIBILITY;
+  }
+}
+
 export default function App() {
   const [apiKey, setApiKey] = useState<string>(() => {
     const stored = localStorage.getItem(STORAGE_KEY) || '';
@@ -82,6 +96,7 @@ export default function App() {
   const [selectedPanelPreset, setSelectedPanelPreset] = useState<string | null>(null);
   const [systemInstructions, setSystemInstructions] = useState('');
   const [interjectText, setInterjectText] = useState('');
+  const [roleVisibility, setRoleVisibility] = useState<RoleVisibility>(() => loadRoleVisibility());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const interjectionRef = useRef<string[]>([]);
@@ -101,6 +116,10 @@ export default function App() {
   useEffect(() => {
     responseDelayRef.current = responseDelay;
   }, [responseDelay]);
+
+  useEffect(() => {
+    localStorage.setItem(ROLE_VISIBILITY_STORAGE_KEY, JSON.stringify(roleVisibility));
+  }, [roleVisibility]);
 
   const { generateMessage, generateNote, stopGeneration } = useOpenRouter({
     apiKey,
@@ -124,13 +143,14 @@ export default function App() {
   };
 
   const handleAddParticipant = useCallback((preset: ParticipantPreset) => {
+    if (!roleVisibility[preset.role]) return;
     setParticipants((prev) => {
       const count = prev.filter((p) => p.role === preset.role).length + 1;
       const instanceId = `${preset.role}_${count}`;
       const label = count > 1 ? `${preset.label} #${count}` : preset.label;
       return [...prev, makeParticipant(preset, instanceId, label)];
     });
-  }, []);
+  }, [roleVisibility]);
 
   const handleCloneParticipant = useCallback((instanceId: string) => {
     setParticipants((prev) => {
@@ -156,6 +176,14 @@ export default function App() {
     setParticipants((prev) =>
       prev.map((p) => (p.instanceId === instanceId ? { ...p, isActive: !p.isActive } : p))
     );
+  }, []);
+
+  useEffect(() => {
+    setParticipants((prev) => prev.filter((participant) => roleVisibility[participant.role] !== false));
+  }, [roleVisibility]);
+
+  const handleToggleRoleVisibility = useCallback((role: ParticipantPreset['role']) => {
+    setRoleVisibility((prev) => ({ ...prev, [role]: !prev[role] }));
   }, []);
 
   const handleModelChange = useCallback((instanceId: string, modelId: string) => {
@@ -186,6 +214,7 @@ export default function App() {
     for (const { role, count } of panelPreset.participants) {
       const preset = PARTICIPANT_PRESETS.find((p) => p.role === role);
       if (!preset) continue;
+      if (!roleVisibility[role]) continue;
 
       for (let i = 0; i < count; i++) {
         roleCounters[role] = (roleCounters[role] || 0) + 1;
@@ -206,7 +235,7 @@ export default function App() {
         setRoundCount(discussionPreset.roundCount);
       }
     }
-  }, []);
+  }, [roleVisibility]);
 
   const handleSelectDiscussionPreset = useCallback((preset: Preset) => {
     setSelectedPreset(preset);
@@ -622,7 +651,7 @@ export default function App() {
               </button>
             </div>
             <p className="hidden max-w-[20rem] shrink-0 text-right text-[10px] text-gray-600 lg:block">
-              Powered by OpenRouter · {participants.length} participant{participants.length !== 1 ? 's' : ''}
+              {participants.length} participant{participants.length !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
@@ -648,6 +677,8 @@ export default function App() {
             responseDelay={responseDelay}
             onResponseDelayChange={setResponseDelay}
             selectedModelPreset={selectedModelPreset}
+            roleVisibility={roleVisibility}
+            onToggleRoleVisibility={handleToggleRoleVisibility}
           />
         </div>
 

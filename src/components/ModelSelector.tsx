@@ -13,6 +13,7 @@ const TIER_COLORS: Record<string, string> = {
   mid: 'text-yellow-400',
   premium: 'text-orange-400',
   flagship: 'text-red-400',
+  'bleeding-edge': 'text-fuchsia-400',
 };
 
 const TIER_LABELS: Record<string, string> = {
@@ -21,6 +22,7 @@ const TIER_LABELS: Record<string, string> = {
   mid: '💳',
   premium: '⭐',
   flagship: '🚀',
+  'bleeding-edge': '🔬',
 };
 
 export function ModelSelector({ member, onChange }: ModelSelectorProps) {
@@ -34,7 +36,7 @@ export function ModelSelector({ member, onChange }: ModelSelectorProps) {
         onChange={(e) => onChange(member.role, e.target.value)}
         className="bg-gray-800 border border-gray-600 rounded-lg text-xs text-gray-300 px-2 py-1 focus:outline-none focus:border-purple-500 truncate max-w-[160px]"
       >
-        {['free', 'budget', 'mid', 'premium', 'flagship'].map((tier) => {
+        {['free', 'budget', 'mid', 'premium', 'flagship', 'bleeding-edge'].map((tier) => {
           const tierModels = OPENROUTER_MODELS.filter((m) => m.tier === tier);
           if (tierModels.length === 0) return null;
           return (

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { MODEL_PRESETS, DISCUSSION_PRESETS } from '../constants';
-import type { ActiveParticipant, Preset } from '../types';
+import { MODEL_PRESETS, DISCUSSION_PRESETS, PARTICIPANT_PRESETS } from '../constants';
+import type { ActiveParticipant, Preset, RoleVisibility, PanelMember } from '../types';
 import { Zap, Settings, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface PanelSidebarProps {
@@ -21,6 +21,8 @@ interface PanelSidebarProps {
   responseDelay: number;
   onResponseDelayChange: (ms: number) => void;
   selectedModelPreset: string | null;
+  roleVisibility: RoleVisibility;
+  onToggleRoleVisibility: (role: PanelMember) => void;
 }
 
 type ConfigTab = 'discussion' | 'models';
@@ -42,6 +44,8 @@ export function PanelSidebar({
   responseDelay,
   onResponseDelayChange,
   selectedModelPreset,
+  roleVisibility,
+  onToggleRoleVisibility,
 }: PanelSidebarProps) {
   const [topicOpen, setTopicOpen] = useState(true);
   const [configOpen, setConfigOpen] = useState(true);
@@ -55,6 +59,8 @@ export function PanelSidebar({
       : responseDelay < 1000
       ? `${responseDelay}ms`
       : `${(responseDelay / 1000).toFixed(1)}s`;
+
+  const visibleRoles = PARTICIPANT_PRESETS;
 
   return (
     <div className="flex flex-col bg-gray-900 border-l border-gray-700/50 overflow-y-auto h-full">
@@ -257,6 +263,46 @@ export function PanelSidebar({
                       </button>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'discussion' && (
+              <div className="px-3 pt-3">
+                <div className="rounded-xl border border-gray-700 bg-gray-800/60 p-2.5">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                        Role Visibility
+                      </p>
+                      <p className="text-[10px] text-gray-600">Disable roles you never want to add or auto-load.</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {visibleRoles.map((preset) => {
+                      const enabled = roleVisibility[preset.role];
+                      return (
+                        <button
+                          key={preset.role}
+                          type="button"
+                          onClick={() => onToggleRoleVisibility(preset.role)}
+                          className={`rounded-lg border px-2 py-1.5 text-left text-xs transition-all ${
+                            enabled
+                              ? 'border-gray-700 bg-gray-900 text-gray-200 hover:border-purple-500/50'
+                              : 'border-gray-800 bg-gray-950 text-gray-500 opacity-70'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>{preset.emoji}</span>
+                            <span className="truncate font-medium">{preset.label}</span>
+                          </div>
+                          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-gray-500">
+                            {enabled ? 'Enabled' : 'Disabled'}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}

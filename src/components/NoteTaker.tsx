@@ -51,7 +51,7 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes }: NoteT
   );
 
   const currentModel = OPENROUTER_MODELS.find((m) => m.id === config.selectedModel);
-  const tierOrder = ['free', 'budget', 'mid', 'premium', 'flagship'];
+  const tierOrder = ['free', 'budget', 'mid', 'premium', 'flagship', 'bleeding-edge'];
 
   return (
     <div className="flex flex-col h-full bg-gray-900/60 border-t border-gray-700/50">
