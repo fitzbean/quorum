@@ -24,43 +24,31 @@ type OpenRouterModel = {
   };
 };
 
-export const MODEL_TIER_ORDER: ModelTier[] = ['free', 'budget', 'balanced', 'premium', 'flagship', 'bleeding-edge'];
+export const MODEL_TIER_ORDER: ModelTier[] = ['free', 'balanced', 'last-generation', 'bleeding-edge'];
 
 export const MODEL_PRESET_DEFINITIONS: Record<ModelTier, ModelPresetDefinition> = {
   free: {
     label: 'Free',
-    emoji: '🆓',
+    emoji: '\u{1F193}',
     description: 'Zero-cost models from the live OpenRouter catalog',
     targetTier: 'free',
   },
-  budget: {
-    label: 'Budget',
-    emoji: '💵',
-    description: 'Lowest-cost paid models with strong value',
-    targetTier: 'budget',
-  },
   balanced: {
     label: 'Balanced',
-    emoji: '⚖️',
-    description: 'Best quality-to-cost ratio from current OpenRouter models',
+    emoji: '\u2696\uFE0F',
+    description: 'General paid models spanning value through premium quality',
     targetTier: 'balanced',
   },
-  premium: {
-    label: 'Premium',
-    emoji: '⭐',
-    description: 'High-end models for stronger reasoning and creativity',
-    targetTier: 'premium',
-  },
-  flagship: {
-    label: 'Flagship',
-    emoji: '🚀',
-    description: 'Top-tier frontier models from major providers',
-    targetTier: 'flagship',
+  'last-generation': {
+    label: 'Last Generation',
+    emoji: '\u23EE',
+    description: 'Previous major revision from the same live bleeding-edge model families',
+    targetTier: 'last-generation',
   },
   'bleeding-edge': {
     label: 'Bleeding Edge',
-    emoji: '🔬',
-    description: 'Newest OpenAI, Anthropic, and Gemini models available',
+    emoji: '\u{1F52C}',
+    description: 'Newest OpenAI, Anthropic, and Gemini model families available',
     targetTier: 'bleeding-edge',
   },
 };
@@ -111,8 +99,33 @@ function toUtcDay(timestamp?: number): string | null {
 
 function getVersionKey(model: OpenRouterModel): string | null {
   const source = `${model.id} ${model.name ?? ''}`.toLowerCase();
-  const match = source.match(/\b(\d+(?:\.\d+)+)\b/);
+  const match = source.match(/(?:^|[-_\s])(\d+(?:\.\d+)*)\b/);
   return match?.[1] ?? null;
+}
+
+function parseVersionSegments(version: string | null): number[] | null {
+  if (!version) return null;
+
+  const segments = version.split('.').map((part) => Number(part));
+  return segments.every(Number.isFinite) ? segments : null;
+}
+
+function compareVersionSegments(a: number[], b: number[]): number {
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const delta = (a[index] ?? 0) - (b[index] ?? 0);
+    if (delta !== 0) return delta;
+  }
+  return 0;
+}
+
+function getFamilyKey(model: OpenRouterModel): string | null {
+  const slug = model.id.split('/')[1]?.split(':')[0]?.toLowerCase() ?? '';
+  if (!slug) return null;
+
+  const versionMatch = slug.match(/(?:^|[-_])(\d+(?:\.\d+)*)\b/);
+  const familyPrefix = versionMatch ? slug.slice(0, versionMatch.index) : slug;
+  return familyPrefix.split(/[-_]/).filter(Boolean)[0] ?? null;
 }
 
 function getLatestBleedingEdgeIds(models: OpenRouterModel[]): Set<string> {
@@ -158,18 +171,71 @@ function getLatestBleedingEdgeIds(models: OpenRouterModel[]): Set<string> {
   );
 }
 
+function getLastGenerationIds(models: OpenRouterModel[], bleedingEdgeIds: Set<string>): Set<string> {
+  const bleedingEdgeVersionByFamily = new Map<string, number[]>();
+
+  for (const model of models) {
+    if (!bleedingEdgeIds.has(model.id)) continue;
+
+    const provider = getProvider(model.id);
+    const family = getFamilyKey(model);
+    const version = parseVersionSegments(getVersionKey(model));
+    if (!provider || !family || !version) continue;
+
+    const key = `${provider}:${family}`;
+    const current = bleedingEdgeVersionByFamily.get(key);
+    if (!current || compareVersionSegments(version, current) > 0) {
+      bleedingEdgeVersionByFamily.set(key, version);
+    }
+  }
+
+  const previousVersionByFamily = new Map<string, string>();
+
+  for (const model of models) {
+    const provider = getProvider(model.id);
+    const family = getFamilyKey(model);
+    const versionKey = getVersionKey(model);
+    const version = parseVersionSegments(versionKey);
+    if (!provider || !family || !versionKey || !version) continue;
+
+    const key = `${provider}:${family}`;
+    const bleedingEdgeVersion = bleedingEdgeVersionByFamily.get(key);
+    if (!bleedingEdgeVersion || compareVersionSegments(version, bleedingEdgeVersion) >= 0) continue;
+
+    const currentPreviousVersion = previousVersionByFamily.get(key);
+    if (!currentPreviousVersion) {
+      previousVersionByFamily.set(key, versionKey);
+      continue;
+    }
+
+    const currentPreviousSegments = parseVersionSegments(currentPreviousVersion);
+    if (!currentPreviousSegments || compareVersionSegments(version, currentPreviousSegments) > 0) {
+      previousVersionByFamily.set(key, versionKey);
+    }
+  }
+
+  return new Set(
+    models
+      .filter((model) => {
+        if (bleedingEdgeIds.has(model.id)) return false;
+
+        const provider = getProvider(model.id);
+        const family = getFamilyKey(model);
+        const versionKey = getVersionKey(model);
+        if (!provider || !family || !versionKey) return false;
+
+        return previousVersionByFamily.get(`${provider}:${family}`) === versionKey;
+      })
+      .map((model) => model.id)
+  );
+}
+
 function deriveTier(model: OpenRouterModel): ModelTier {
   const prompt = getPromptPrice(model);
   const completion = getCompletionPrice(model);
-  const totalPrice = prompt + completion;
-  const contextLength = getContextLength(model);
 
   if (prompt === 0 && completion === 0) return 'free';
-
-  if (totalPrice <= 0.5 && contextLength >= 64000) return 'budget';
-  if (totalPrice <= 2) return 'balanced';
-  if (totalPrice <= 12) return 'premium';
-  return 'flagship';
+  return 'balanced';
 }
 
 export function normalizeOpenRouterModel(model: OpenRouterModel): ModelOption {
@@ -204,11 +270,16 @@ export async function fetchOpenRouterCatalog(): Promise<ModelOption[]> {
   const payload = (await response.json()) as { data?: OpenRouterModel[] };
   const rawModels = payload.data || [];
   const bleedingEdgeIds = getLatestBleedingEdgeIds(rawModels);
+  const lastGenerationIds = getLastGenerationIds(rawModels, bleedingEdgeIds);
   const models = rawModels.map((model) => {
     const normalized = normalizeOpenRouterModel(model);
     return {
       ...normalized,
-      tier: bleedingEdgeIds.has(model.id) ? 'bleeding-edge' : normalized.tier,
+      tier: bleedingEdgeIds.has(model.id)
+        ? 'bleeding-edge'
+        : lastGenerationIds.has(model.id)
+          ? 'last-generation'
+          : normalized.tier,
     };
   });
 

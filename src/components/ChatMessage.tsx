@@ -6,9 +6,11 @@ interface ChatMessageProps {
   message: Message;
   participants: ActiveParticipant[];
   isLatest?: boolean;
+  isHighlighted?: boolean;
+  onHighlight?: () => void;
 }
 
-export function ChatMessage({ message, participants, isLatest }: ChatMessageProps) {
+export function ChatMessage({ message, participants, isLatest, isHighlighted = false, onHighlight }: ChatMessageProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,9 +69,29 @@ export function ChatMessage({ message, participants, isLatest }: ChatMessageProp
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xl">{member.emoji}</span>
           <span className={`text-sm font-semibold ${member.color}`}>{member.label}</span>
+          {member.personalityTraits.map((trait) => (
+            <span
+              key={trait}
+              className="text-[9px] rounded-full bg-purple-500/20 border border-purple-400/30 px-1.5 py-0 text-purple-300 capitalize"
+            >
+              {trait}
+            </span>
+          ))}
           <span className="text-xs text-gray-500">
             {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
+          {onHighlight && !message.isStreaming && (
+            <button
+              onClick={onHighlight}
+              className={`rounded-md border px-2 py-0.5 text-[10px] transition-all ${
+                isHighlighted
+                  ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
+                  : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-cyan-500/40 hover:text-cyan-300'
+              }`}
+            >
+              {isHighlighted ? 'Selected' : 'Highlight'}
+            </button>
+          )}
           {message.isStreaming && (
             <span className="flex gap-0.5 items-center">
               <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -78,7 +100,7 @@ export function ChatMessage({ message, participants, isLatest }: ChatMessageProp
             </span>
           )}
         </div>
-        <div className={`${member.bgColor} border ${member.borderColor} rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed text-gray-100`}>
+        <div className={`${member.bgColor} border ${isHighlighted ? 'border-cyan-400 ring-1 ring-cyan-400/50' : member.borderColor} rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed text-gray-100`}>
           <div className="prose prose-invert prose-sm max-w-none break-words">
             <ReactMarkdown>{message.content || '\u00a0'}</ReactMarkdown>
           </div>

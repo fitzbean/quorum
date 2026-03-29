@@ -179,19 +179,24 @@ export function useOpenRouter({ apiKey, participants, systemInstructions }: UseO
         const typeText = typeMatch?.[1]?.trim() ?? '';
         if (topicText) {
           topicReminder =
-            `\n\n⚠️ MANDATORY TOPIC FOCUS: Your ENTIRE response must address the specific topic below. ` +
-            `Reference it by name. Do NOT speak in generalities.\n` +
+            `\n\n⚠️ TOPIC FOCUS: Stay tightly on this topic. You do not need to restate the topic name unless it helps clarity. Avoid generic advice.\n` +
             `• TOPIC: "${topicText}"` +
             (typeText ? `\n• DISCUSSION TYPE: ${typeText}` : '');
         }
       }
+
+      const otherParticipants = participantsRef.current.filter((p) => p.instanceId !== instanceId);
+      const peerList = otherParticipants.map((p) => `${p.emoji} ${p.label}`).join(', ');
 
       // Final "your turn" trigger
       messages.push({
         role: 'user',
         content:
           `It is now your turn to speak, ${participant.emoji} ${participant.label}. ` +
-          `Build on what has been said above. Be specific, insightful, and advance the discussion.` +
+          `${participant.personalityTraits.length > 0 ? `Your current personality traits are: ${participant.personalityTraits.join(', ')}. Let them shape your tone and priorities without turning into caricature. ` : ''}` +
+          `Keep it short and pointed. Treat this as a real collaborative conversation, not a formal monologue. ` +
+          `You may agree, disagree, challenge assumptions, or call out specific participants by name when relevant${peerList ? ` (${peerList})` : ''}. ` +
+          `Do not wait for a rigid speaker order; respond to the strongest idea in the thread and move the discussion forward with energy.` +
           topicReminder,
       });
 

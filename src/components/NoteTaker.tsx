@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { ChevronDown, Trash2, Copy, Check, NotebookPen } from 'lucide-react';
-import type { NoteEntry, NoteDetailLevel, NoteTakerConfig, ModelOption } from '../types';
+import type { NoteEntry, NoteDetailLevel, NoteTakerConfig, ModelOption, ModelTier } from '../types';
 import { NOTE_DETAIL_LEVELS } from '../constants';
 import { MODEL_TIER_ORDER } from '../utils/modelCatalog';
 
@@ -12,13 +12,11 @@ interface NoteTakerProps {
   models: ModelOption[];
 }
 
-const TIER_LABELS: Record<string, string> = {
-  free: '🆓 Free',
-  budget: '💚 Budget',
-  balanced: '⚖️ Balanced',
-  premium: '🟠 Premium',
-  flagship: '🔴 Flagship',
-  'bleeding-edge': '🔬 Bleeding Edge',
+const TIER_LABELS: Record<ModelTier, string> = {
+  free: '\u{1F193} Free',
+  balanced: '\u2696\uFE0F Balanced',
+  'last-generation': '\u23EE Last Generation',
+  'bleeding-edge': '\u{1F52C} Bleeding Edge',
 };
 
 export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models }: NoteTakerProps) {
@@ -58,7 +56,6 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models 
 
   return (
     <div className="flex flex-col h-full bg-gray-900/60 border-t border-gray-700/50">
-      {/* Header */}
       <div className="px-3 py-2 border-b border-gray-700/50 bg-gray-900/80 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -96,9 +93,7 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models 
           </div>
         </div>
 
-        {/* Controls row */}
         <div className="flex items-center gap-1.5">
-          {/* Enable toggle */}
           <button
             onClick={() => onConfigChange({ enabled: !config.enabled })}
             className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors flex-shrink-0 ${
@@ -112,7 +107,6 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models 
             />
           </button>
 
-          {/* Detail level selector */}
           <div className="flex gap-0.5 flex-1">
             {(Object.keys(NOTE_DETAIL_LEVELS) as NoteDetailLevel[]).map((level) => {
               const lvl = NOTE_DETAIL_LEVELS[level];
@@ -134,19 +128,17 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models 
           </div>
         </div>
 
-        {/* Detail level label */}
         <div className="mt-1 text-[10px] text-gray-500">
-          {NOTE_DETAIL_LEVELS[config.detailLevel].label} — {NOTE_DETAIL_LEVELS[config.detailLevel].description}
+          {NOTE_DETAIL_LEVELS[config.detailLevel].label} {'\u2014'} {NOTE_DETAIL_LEVELS[config.detailLevel].description}
         </div>
 
-        {/* Model selector */}
         <div className="mt-1.5 relative">
           <button
             onClick={() => setModelOpen((v) => !v)}
             className="w-full flex items-center justify-between gap-1 text-[10px] bg-gray-800/80 border border-gray-700/50 rounded px-2 py-1 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-all"
           >
             <span className="truncate">
-              🤖 {currentModel?.name ?? config.selectedModel.split('/')[1]?.split(':')[0] ?? config.selectedModel}
+              {'\u{1F916}'} {currentModel?.name ?? config.selectedModel.split('/')[1]?.split(':')[0] ?? config.selectedModel}
             </span>
             <ChevronDown className={`w-2.5 h-2.5 flex-shrink-0 transition-transform ${modelOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -183,14 +175,13 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models 
         </div>
       </div>
 
-      {/* Notes list */}
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-2">
         {notes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-4">
             <NotebookPen className="w-6 h-6 text-gray-700 mb-2" />
             <p className="text-[10px] text-gray-600 leading-relaxed">
               {config.enabled
-                ? 'Notes will appear here as the panel speaks…'
+                ? 'Notes will appear here as the panel speaks...'
                 : 'Enable note-taking to capture summaries'}
             </p>
           </div>
@@ -205,7 +196,6 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models 
                     : 'border-gray-700/40 bg-gray-800/30'
                 }`}
               >
-                {/* Speaker badge */}
                 <div className="flex items-center gap-1 mb-1">
                   <span className="text-[10px]">{note.speakerEmoji}</span>
                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">
@@ -219,15 +209,14 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models 
                     </span>
                   )}
                 </div>
-                {/* Summary text */}
                 <p
                   className={`text-[11px] leading-relaxed whitespace-pre-wrap ${
-                    note.summary.startsWith('⚠️')
+                    note.summary.startsWith('\u26A0\uFE0F')
                       ? 'text-red-400'
                       : 'text-gray-300'
                   }`}
                 >
-                  {note.summary || (note.isStreaming ? '…' : '')}
+                  {note.summary || (note.isStreaming ? '...' : '')}
                 </p>
               </div>
             ))}

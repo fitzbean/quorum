@@ -1,4 +1,3 @@
-
 import type { PanelMemberConfig, ModelOption, ModelTier } from '../types';
 import { MODEL_TIER_ORDER } from '../utils/modelCatalog';
 
@@ -8,22 +7,18 @@ interface ModelSelectorProps {
   models: ModelOption[];
 }
 
-const TIER_COLORS: Record<string, string> = {
+const TIER_COLORS: Record<ModelTier, string> = {
   free: 'text-green-400',
-  budget: 'text-blue-400',
   balanced: 'text-yellow-400',
-  premium: 'text-orange-400',
-  flagship: 'text-red-400',
+  'last-generation': 'text-orange-400',
   'bleeding-edge': 'text-fuchsia-400',
 };
 
-const TIER_LABELS: Record<string, string> = {
-  free: '🆓',
-  budget: '💵',
-  balanced: '⚖️',
-  premium: '⭐',
-  flagship: '🚀',
-  'bleeding-edge': '🔬',
+const TIER_LABELS: Record<ModelTier, string> = {
+  free: '\u{1F193}',
+  balanced: '\u2696\uFE0F',
+  'last-generation': '\u23EE',
+  'bleeding-edge': '\u{1F52C}',
 };
 
 export function ModelSelector({ member, onChange, models }: ModelSelectorProps) {
@@ -59,4 +54,3 @@ export function ModelSelector({ member, onChange, models }: ModelSelectorProps) 
     </div>
   );
 }
-

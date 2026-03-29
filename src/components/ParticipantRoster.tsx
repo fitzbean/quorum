@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Info } from 'lucide-react';
 import { PARTICIPANT_PRESETS, PANEL_PRESETS } from '../constants';
-import type { ActiveParticipant, ParticipantPreset, PanelPreset, ModelOption, ModelTier } from '../types';
-import { formatModelPricePerThousand, MODEL_TIER_ORDER } from '../utils/modelCatalog';
+import { PERSONALITY_TRAITS } from '../types';
+import type { ActiveParticipant, ParticipantPreset, PanelPreset, ModelOption, ModelTier, PersonalityTrait } from '../types';
+import { formatModelPricePerThousand } from '../utils/modelCatalog';
 
 interface ParticipantRosterProps {
   participants: ActiveParticipant[];
@@ -12,6 +14,7 @@ interface ParticipantRosterProps {
   onRemove: (instanceId: string) => void;
   onToggleActive: (instanceId: string) => void;
   onModelChange: (instanceId: string, modelId: string) => void;
+  onPersonalityTraitsChange: (instanceId: string, traits: PersonalityTrait[]) => void;
   onApplyPanelPreset: (preset: PanelPreset) => void;
   selectedPanelPreset: string | null;
   models: ModelOption[];
@@ -27,12 +30,14 @@ const CATEGORY_LABELS: Record<string, { label: string; emoji: string }> = {
 
 const TIER_COLORS: Record<string, string> = {
   free:            'text-gray-400',
-  budget:          'text-green-400',
   balanced:        'text-blue-400',
-  premium:         'text-purple-400',
-  flagship:        'text-amber-400',
+  'last-generation': 'text-purple-400',
   'bleeding-edge': 'text-fuchsia-400',
 };
+
+function getInlineModelLabel(modelName: string): string {
+  return modelName.replace(/^\S+\s+/, '');
+}
 
 export function ParticipantRoster({
   participants,
@@ -43,6 +48,7 @@ export function ParticipantRoster({
   onRemove,
   onToggleActive,
   onModelChange,
+  onPersonalityTraitsChange,
   onApplyPanelPreset,
   selectedPanelPreset,
   models,
@@ -50,7 +56,9 @@ export function ParticipantRoster({
   const [showSpawner, setShowSpawner] = useState(false);
   const [showPanelPresets, setShowPanelPresets] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [infoPopupId, setInfoPopupId] = useState<string | null>(null);
   const [spawnerCategory, setSpawnerCategory] = useState<string>('all');
+  const infoPopupRef = useRef<HTMLDivElement | null>(null);
 
   const categories = ['all', 'core', 'creative', 'technical', 'business', 'specialist'];
 
@@ -62,6 +70,19 @@ export function ParticipantRoster({
     const match = models.find((model) => model.id === selectedModelId);
     return match?.tier ?? null;
   };
+
+  useEffect(() => {
+    if (!infoPopupId) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!infoPopupRef.current?.contains(event.target as Node)) {
+        setInfoPopupId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [infoPopupId]);
 
   const roleCounts: Record<string, number> = {};
 
@@ -217,6 +238,10 @@ export function ParticipantRoster({
               roleCounts[p.role] = (roleCounts[p.role] || 0) + 1;
               const isSpeaking = currentSpeakerId === p.instanceId;
               const isExpanded = expandedId === p.instanceId;
+              const model = models.find((m) => m.id === p.selectedModel);
+              const modelLabel = model?.name ?? p.selectedModel.split('/')[1]?.split(':')[0] ?? p.selectedModel;
+              const inlineModelLabel = getInlineModelLabel(modelLabel);
+              const isInfoOpen = infoPopupId === p.instanceId;
 
               return (
                 <div
@@ -254,9 +279,52 @@ export function ParticipantRoster({
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-gray-500 truncate">
-                        {p.selectedModel.split('/')[1]?.split(':')[0] || p.selectedModel}
-                      </p>
+                      <div className="relative mt-0.5 flex items-center gap-1 min-w-0" ref={isInfoOpen ? infoPopupRef : null}>
+                        {model && (
+                          <>
+                            <button
+                              type="button"
+                              title="Model info"
+                              aria-label={`Show info for ${modelLabel}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setInfoPopupId(isInfoOpen ? null : p.instanceId);
+                              }}
+                              className={`flex h-4 w-4 flex-shrink-0 items-center justify-center transition-all ${
+                                isInfoOpen
+                                  ? 'text-purple-200'
+                                  : 'text-gray-500 hover:text-gray-200'
+                              }`}
+                            >
+                              <Info className="h-2.5 w-2.5" />
+                            </button>
+                            {isInfoOpen && (
+                              <div
+                                className="absolute left-0 top-full z-20 mt-1.5 w-64 rounded-xl border border-gray-700 bg-gray-900/95 p-2 shadow-2xl"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <div className="text-[11px] font-semibold text-white">{model.name}</div>
+                                <div className={`mt-1 text-[10px] font-medium capitalize ${TIER_COLORS[model.tier]}`}>
+                                  {model.tier} tier
+                                </div>
+                                <p className="mt-1 text-[10px] leading-relaxed text-gray-300">{model.description}</p>
+                                <div className="mt-2 text-[10px] text-gray-400">
+                                  Context: {model.contextLength.toLocaleString()} tokens
+                                </div>
+                                <div className="text-[10px] text-gray-400">
+                                  Input: {formatModelPricePerThousand(model.pricing.prompt)}/1K
+                                </div>
+                                <div className="text-[10px] text-gray-400">
+                                  Output: {formatModelPricePerThousand(model.pricing.completion)}/1K
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        <p className="text-[10px] text-gray-500 truncate">
+                          {inlineModelLabel}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Actions */}
@@ -304,20 +372,37 @@ export function ParticipantRoster({
 
                           return tierModels.map((m) => (
                             <option key={m.id} value={m.id}>
-                              {m.name} — {formatModelPricePerThousand(m.pricing.prompt)}/1K in
+                              {m.name}
                             </option>
                           ));
                         })()}
                       </select>
-                      {/* Tier badge */}
-                      {(() => {
-                        const model = models.find((m) => m.id === p.selectedModel);
-                        return model ? (
-                          <p className={`text-[10px] mt-1 ${TIER_COLORS[model.tier]}`}>
-                            {model.description} · {model.contextLength.toLocaleString()} ctx
-                          </p>
-                        ) : null;
-                      })()}
+                      <p className="text-[10px] text-gray-500 mb-1 mt-3 uppercase tracking-wider">Personality traits</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {PERSONALITY_TRAITS.map((trait) => {
+                          const selected = p.personalityTraits.includes(trait);
+                          return (
+                            <button
+                              key={trait}
+                              type="button"
+                              disabled={isRunning}
+                              onClick={() => {
+                                const next = selected
+                                  ? p.personalityTraits.filter((item) => item !== trait)
+                                  : [...p.personalityTraits, trait];
+                                onPersonalityTraitsChange(p.instanceId, next);
+                              }}
+                              className={`rounded-full border px-2 py-1 text-[10px] capitalize transition-all disabled:opacity-50 ${
+                                selected
+                                  ? 'border-purple-400/60 bg-purple-500/20 text-purple-200'
+                                  : 'border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-600 hover:text-gray-200'
+                              }`}
+                            >
+                              {trait}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>

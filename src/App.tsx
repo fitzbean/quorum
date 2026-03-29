@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Send, Settings } from 'lucide-react';
+import { Hand, Pause, Play, Send, Settings } from 'lucide-react';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { ChatMessage } from './components/ChatMessage';
 import { ContextPanel } from './components/ContextPanel';
@@ -29,7 +29,10 @@ import type {
   RoleVisibility,
   ModelOption,
   ModelTier,
+  PersonalityTrait,
 } from './types';
+
+const DEFAULT_PERSONALITY_TRAITS: PersonalityTrait[] = ['analytical'];
 
 const STORAGE_KEY = 'slotmind_api_key';
 
@@ -49,6 +52,7 @@ function makeParticipant(preset: ParticipantPreset, instanceId: string, label?: 
     selectedModel: preset.defaultModel,
     systemPrompt: preset.systemPrompt,
     isActive: true,
+    personalityTraits: [...DEFAULT_PERSONALITY_TRAITS],
   };
 }
 
@@ -112,10 +116,13 @@ export default function App() {
   const [interjectText, setInterjectText] = useState('');
   const [roleVisibility, setRoleVisibility] = useState<RoleVisibility>(() => loadRoleVisibility());
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
+  const [isPaused, setIsPaused] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const interjectionRef = useRef<string[]>([]);
   const stopRequestedRef = useRef(false);
+  const isPausedRef = useRef(false);
   const noteTakerConfigRef = useRef(noteTakerConfig);
   const participantsRef = useRef(participants);
   const responseDelayRef = useRef(responseDelay);
@@ -159,7 +166,7 @@ export default function App() {
 
     const modelIds = new Set(availableModels.map((model) => model.id));
     const defaultFallback = getFallbackModelId(availableModels, 'balanced') ?? getFallbackModelId(availableModels);
-    const noteFallback = getFallbackModelId(availableModels, 'budget') ?? defaultFallback;
+    const noteFallback = getFallbackModelId(availableModels, 'balanced') ?? defaultFallback;
 
     if (!defaultFallback) return;
 
@@ -185,6 +192,10 @@ export default function App() {
   useEffect(() => {
     interjectionRef.current = interjectionQueue;
   }, [interjectionQueue]);
+
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -244,6 +255,12 @@ export default function App() {
   const handleModelChange = useCallback((instanceId: string, modelId: string) => {
     setParticipants((prev) =>
       prev.map((p) => (p.instanceId === instanceId ? { ...p, selectedModel: modelId } : p))
+    );
+  }, []);
+
+  const handlePersonalityTraitsChange = useCallback((instanceId: string, traits: PersonalityTrait[]) => {
+    setParticipants((prev) =>
+      prev.map((p) => (p.instanceId === instanceId ? { ...p, personalityTraits: traits } : p))
     );
   }, []);
 
@@ -325,8 +342,16 @@ export default function App() {
   }, []);
 
   const handleInterject = useCallback((text: string) => {
+    const highlightedMessage = highlightedMessageId
+      ? messages.find((message) => message.id === highlightedMessageId)
+      : null;
+    const contextPrefix = highlightedMessage
+      ? `About ${highlightedMessage.speakerLabel ? `${highlightedMessage.speakerLabel}'s` : 'the selected'} message: "${highlightedMessage.content.trim().slice(0, 240)}"\n\n`
+      : '';
+    const queueText = `${contextPrefix}${text}`.trim();
+
     setInterjectionQueue((prev) => {
-      const next = [...prev, text];
+      const next = [...prev, queueText];
       interjectionRef.current = next;
       return next;
     });
@@ -336,10 +361,13 @@ export default function App() {
       role: 'user',
       content: `✋ **[Interjection]** ${text}`,
       timestamp: new Date(),
+      highlightedMessageId: highlightedMessageId ?? undefined,
     };
 
     setMessages((prev) => [...prev, msg]);
-  }, []);
+    setHighlightedMessageId(null);
+    setIsPaused(false);
+  }, [highlightedMessageId, messages]);
 
   const handleSubmitInterjection = useCallback(() => {
     const value = interjectText.trim();
@@ -347,6 +375,11 @@ export default function App() {
     handleInterject(value);
     setInterjectText('');
   }, [handleInterject, interjectText, isRunning]);
+
+  const handleTogglePause = useCallback(() => {
+    if (!isRunning) return;
+    setIsPaused((prev) => !prev);
+  }, [isRunning]);
 
   const runDiscussion = useCallback(async () => {
     if (!topic.trim()) return;
@@ -359,29 +392,22 @@ export default function App() {
     setCurrentRound(0);
 
     const preferredRoles = selectedPreset?.preferredRoles || [];
-    const speakingOrder: ActiveParticipant[] = [];
-    const usedInstanceIds = new Set<string>();
+    const rolePriority = new Map(preferredRoles.map((role, index) => [role, index]));
+    const finalOrder = [...activeParticipants].sort((a, b) => {
+      const aPriority = rolePriority.get(a.role) ?? Number.MAX_SAFE_INTEGER;
+      const bPriority = rolePriority.get(b.role) ?? Number.MAX_SAFE_INTEGER;
 
-    for (const role of preferredRoles) {
-      const match = activeParticipants.find((p) => p.role === role && !usedInstanceIds.has(p.instanceId));
-      if (match) {
-        speakingOrder.push(match);
-        usedInstanceIds.add(match.instanceId);
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
       }
-    }
 
-    for (const participant of activeParticipants) {
-      if (!usedInstanceIds.has(participant.instanceId)) {
-        speakingOrder.push(participant);
-      }
-    }
-
-    const finalOrder = speakingOrder.length > 0 ? speakingOrder : activeParticipants;
+      return a.label.localeCompare(b.label);
+    });
 
     const openingUserMsg: Message = {
       id: generateId(),
       role: 'user',
-      content: `🎯 **PANEL DISCUSSION BRIEF**\n\n**Topic:** ${topic}\n\n**Discussion Type:** ${selectedPreset?.label || 'General'}\n\n**Framing:** ${selectedPreset?.discussionPrompt || ''}\n\n---\n⚠️ ALL panelists must keep every response strictly and specifically about: "${topic}". Reference the topic by name in your response. Do not give generic slot design advice; apply your expertise directly to this specific topic.${attachmentContext ? `\n\n**Reference Material Provided:**\n${attachmentContext}` : ''}`,
+      content: `🎯 **PANEL DISCUSSION BRIEF**\n\n**Topic:** ${topic}\n\n**Discussion Type:** ${selectedPreset?.label || 'General'}\n\n**Framing:** ${selectedPreset?.discussionPrompt || ''}\n\n---\n⚠️ Keep every response clearly anchored to this specific topic. Stay concrete and avoid drifting into generic slot design advice.${attachmentContext ? `\n\n**Reference Material Provided:**\n${attachmentContext}` : ''}`,
       timestamp: new Date(),
     };
 
@@ -394,6 +420,10 @@ export default function App() {
 
       for (const participant of finalOrder) {
         if (stopRequestedRef.current) break;
+
+        while (isPausedRef.current && !stopRequestedRef.current) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
 
         if (interjectionRef.current.length > 0) {
           const injection = interjectionRef.current[0];
@@ -409,6 +439,10 @@ export default function App() {
         }
 
         if (stopRequestedRef.current) break;
+
+        while (isPausedRef.current && !stopRequestedRef.current) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
 
         const msgId = generateId();
         const pendingMsg: Message = {
@@ -515,6 +549,7 @@ export default function App() {
     stopGeneration();
     setIsRunning(false);
     setCurrentSpeakerId(null);
+    setIsPaused(false);
   }, [stopGeneration]);
 
   const handleReset = useCallback(() => {
@@ -526,6 +561,8 @@ export default function App() {
     setCurrentRound(0);
     setNotes([]);
     setInterjectText('');
+    setHighlightedMessageId(null);
+    setIsPaused(false);
   }, [handleStop]);
 
   const activeCount = participants.filter((p) => p.isActive).length;
@@ -669,6 +706,8 @@ export default function App() {
                   message={msg}
                   participants={participants}
                   isLatest={idx === messages.length - 1}
+                  isHighlighted={highlightedMessageId === msg.id}
+                  onHighlight={msg.role === 'assistant' ? () => setHighlightedMessageId((prev) => prev === msg.id ? null : msg.id) : undefined}
                 />
               ))}
               <div ref={messagesEndRef} />
@@ -685,21 +724,32 @@ export default function App() {
                   ? '✋ Live interjection'
                   : '✋ Start a discussion to interject'}
             </div>
-            <div className="flex flex-1 items-center gap-2 rounded-2xl border border-amber-500/30 bg-gray-950/90 px-3 py-2 shadow-[0_0_0_1px_rgba(245,158,11,0.05)]">
-              <span className="shrink-0 text-sm text-amber-400">✋</span>
-              <input
-                value={interjectText}
-                onChange={(e) => setInterjectText(e.target.value)}
+              <div className="flex flex-1 items-center gap-2 rounded-2xl border border-amber-500/30 bg-gray-950/90 px-3 py-2 shadow-[0_0_0_1px_rgba(245,158,11,0.05)]">
+               <button
+                 onClick={handleTogglePause}
+                 disabled={!apiKey || !isRunning}
+                 title={isPaused ? 'Resume discussion' : 'Pause before the next speaker'}
+                 className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                   isPaused
+                     ? 'border-amber-400 bg-amber-500/20 text-amber-300'
+                     : 'border-amber-500/40 bg-gray-900 text-amber-400 hover:bg-gray-800'
+                 }`}
+               >
+                 {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+               </button>
+               <input
+                 value={interjectText}
+                 onChange={(e) => setInterjectText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleSubmitInterjection();
                   }
                 }}
-                placeholder={isRunning ? 'Type an interjection for the next turn...' : 'Interjections unlock during a live discussion'}
-                disabled={!apiKey || !isRunning}
-                className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none disabled:cursor-not-allowed"
-              />
+                 placeholder={isRunning ? 'Type an interjection for the next turn...' : 'Interjections unlock during a live discussion'}
+                 disabled={!apiKey || !isRunning}
+                 className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none disabled:cursor-not-allowed"
+               />
               <button
                 onClick={handleSubmitInterjection}
                 disabled={!apiKey || !isRunning || !interjectText.trim()}
@@ -709,6 +759,26 @@ export default function App() {
                 <Send className="h-4 w-4" />
               </button>
             </div>
+            {highlightedMessageId && (() => {
+              const highlighted = messages.find((message) => message.id === highlightedMessageId);
+              return highlighted ? (
+                <div className="mt-2 mx-auto max-w-3xl rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-3 py-2 text-xs text-cyan-100">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1 font-medium text-cyan-300">
+                      <Hand className="h-3.5 w-3.5" />
+                      Interjecting about selected panel response
+                    </span>
+                    <button
+                      onClick={() => setHighlightedMessageId(null)}
+                      className="text-[10px] text-cyan-400 hover:text-cyan-200"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <p className="line-clamp-2 text-cyan-50/90">{highlighted.content}</p>
+                </div>
+              ) : null;
+            })()}
             <p className="hidden max-w-[20rem] shrink-0 text-right text-[10px] text-gray-600 lg:block">
               {participants.length} participant{participants.length !== 1 ? 's' : ''}
             </p>
@@ -752,6 +822,7 @@ export default function App() {
             onRemove={handleRemoveParticipant}
             onToggleActive={handleToggleActive}
             onModelChange={handleModelChange}
+            onPersonalityTraitsChange={handlePersonalityTraitsChange}
             onApplyPanelPreset={handleApplyPanelPreset}
             selectedPanelPreset={selectedPanelPreset}
             models={availableModels}

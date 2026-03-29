@@ -46,7 +46,23 @@ export interface Message {
   timestamp: Date;
   isStreaming?: boolean;
   attachments?: Attachment[];
+  highlightedMessageId?: string;
 }
+
+export const PERSONALITY_TRAITS = [
+  'analytical',
+  'blunt',
+  'diplomatic',
+  'cynical',
+  'naysayer',
+  'skeptical',
+  'optimistic',
+  'provocative',
+  'playful',
+  'visionary',
+] as const;
+
+export type PersonalityTrait = (typeof PERSONALITY_TRAITS)[number];
 
 export interface Attachment {
   id: string;
@@ -78,7 +94,7 @@ export interface ModelOption {
   createdAt?: string;
 }
 
-export type ModelTier = 'free' | 'budget' | 'balanced' | 'premium' | 'flagship' | 'bleeding-edge';
+export type ModelTier = 'free' | 'balanced' | 'last-generation' | 'bleeding-edge';
 
 export interface ModelPresetDefinition {
   label: string;
@@ -113,6 +129,7 @@ export interface ActiveParticipant {
   selectedModel: string;
   systemPrompt: string;
   isActive: boolean;        // can mute/unmute
+  personalityTraits: PersonalityTrait[];
 }
 
 // Legacy compat alias

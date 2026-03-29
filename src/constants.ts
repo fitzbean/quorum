@@ -53,8 +53,10 @@ export const PARTICIPANT_PRESETS: ParticipantPreset[] = [
 - Synthesize insights back to the original topic brief — not generic slot design theory.
 - Ask pointed follow-up questions anchored to THIS specific topic, not abstract ones.
 - Summarize at the end of each round what's been established about THIS topic and what still needs covering.
-- Be concise but incisive. Keep responses under 200 words.
-- You are speaking in a professional panel chatroom. Use natural language, not bullet points unless listing actionable items.`,
+- Keep it short, pointed, and conversational. Let the speakers jump off each other's ideas instead of enforcing a stiff sequence.
+- Encourage direct cross-talk: call on participants by name, invite disagreements, and highlight collisions between viewpoints.
+- Keep responses under 160 words.
+- You are speaking in a professional but passionate panel chatroom. Use natural language, not bullet points unless listing actionable items.`,
   },
   {
     role: 'mathematician',
@@ -373,7 +375,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     description: 'Open ideation — push boundaries and generate novel concepts',
     discussionPrompt:
       "Let's brainstorm innovative slot machine concepts that haven't been done before. Think about unique mechanics, unexpected themes, and boundary-pushing features. What could the next generation of slots look like?",
-    preferredRoles: ['moderator', 'game_designer', 'artist', 'psychologist', 'mathematician', 'engineer', 'moderator'],
+    preferredRoles: ['moderator', 'game_designer', 'artist', 'psychologist', 'mathematician', 'engineer'],
     roundCount: 2,
   },
   {
@@ -383,7 +385,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     description: 'Deep critique of existing concepts or material provided',
     discussionPrompt:
       'Critically evaluate the provided material. Identify strengths, weaknesses, and specific areas for improvement from each of your expert perspectives.',
-    preferredRoles: ['moderator', 'mathematician', 'psychologist', 'engineer', 'game_designer', 'artist', 'moderator'],
+    preferredRoles: ['moderator', 'mathematician', 'psychologist', 'engineer', 'game_designer', 'artist'],
     roundCount: 2,
   },
   {
@@ -393,7 +395,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     description: 'Focus on gameplay mechanics, math, and technical implementation',
     discussionPrompt:
       'Deep dive into slot mechanics: math model, core loop, bonus features, and technical architecture. How do we optimize for player engagement while maintaining regulatory compliance?',
-    preferredRoles: ['moderator', 'mathematician', 'game_designer', 'engineer', 'psychologist', 'artist', 'moderator'],
+    preferredRoles: ['moderator', 'mathematician', 'game_designer', 'engineer', 'psychologist', 'artist'],
     roundCount: 3,
   },
   {
@@ -403,7 +405,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     description: 'Regulatory requirements, responsible gambling, and ethical design',
     discussionPrompt:
       'Examine this concept through the lens of regulatory compliance and responsible gambling. How do we build a commercially successful slot while meeting regulatory requirements and protecting players?',
-    preferredRoles: ['moderator', 'psychologist', 'mathematician', 'engineer', 'game_designer', 'legal', 'moderator'],
+    preferredRoles: ['moderator', 'psychologist', 'mathematician', 'engineer', 'game_designer', 'legal'],
     roundCount: 2,
   },
   {
@@ -413,7 +415,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     description: 'Revenue optimization, player lifetime value, and business model',
     discussionPrompt:
       'Analyze monetization strategies for maximum sustainable revenue. Consider RTP tiers, jackpot structures, social features, and player retention economics.',
-    preferredRoles: ['moderator', 'monetization', 'mathematician', 'psychologist', 'game_designer', 'data_scientist', 'moderator'],
+    preferredRoles: ['moderator', 'monetization', 'mathematician', 'psychologist', 'game_designer', 'data_scientist'],
     roundCount: 2,
   },
   {
@@ -423,7 +425,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     description: 'Inclusive design, UX optimization, and broad market appeal',
     discussionPrompt:
       'How do we design this slot to be accessible to the widest possible audience while maintaining engagement? Discuss UX, accessibility standards, localization, and cross-platform consistency.',
-    preferredRoles: ['moderator', 'artist', 'psychologist', 'engineer', 'game_designer', 'player_advocate', 'moderator'],
+    preferredRoles: ['moderator', 'artist', 'psychologist', 'engineer', 'game_designer', 'player_advocate'],
     roundCount: 2,
   },
   {
@@ -433,7 +435,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     description: 'Make the case for a new slot concept — sell it to the panel',
     discussionPrompt:
       'We are pitching this slot concept for greenlight. Each panelist should evaluate it from their expertise: is this commercially viable, technically feasible, creatively strong, and player-ready? Make your recommendation.',
-    preferredRoles: ['moderator', 'marketing', 'producer', 'game_designer', 'mathematician', 'engineer', 'moderator'],
+    preferredRoles: ['moderator', 'marketing', 'producer', 'game_designer', 'mathematician', 'engineer'],
     roundCount: 2,
   },
   {
@@ -443,7 +445,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     description: 'Build a rich, cohesive theme — story, art, audio, and lore',
     discussionPrompt:
       "Let's build a complete, cohesive theme world for this slot. Develop the visual identity, narrative lore, character roster, sound palette, and how the theme reinforces the mechanics.",
-    preferredRoles: ['moderator', 'narrative', 'artist', 'sound', 'game_designer', 'psychologist', 'moderator'],
+    preferredRoles: ['moderator', 'narrative', 'artist', 'sound', 'game_designer', 'psychologist'],
     roundCount: 2,
   },
   {
@@ -453,7 +455,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     description: 'Rapid-fire iteration on one specific feature or mechanic',
     discussionPrompt:
       'We are in a design sprint focused on one specific feature or problem. Iterate rapidly — build on each other\'s ideas, challenge assumptions, and converge on the best solution in minimal turns.',
-    preferredRoles: ['moderator', 'game_designer', 'engineer', 'mathematician', 'artist', 'qa', 'moderator'],
+    preferredRoles: ['moderator', 'game_designer', 'engineer', 'mathematician', 'artist', 'qa'],
     roundCount: 3,
   },
   {
@@ -463,7 +465,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     description: 'Retrospective on what worked, what failed, and key learnings',
     discussionPrompt:
       'Conduct a thorough post-mortem on the provided material. What worked well? What failed and why? What would you do differently? Extract the key learnings for future projects.',
-    preferredRoles: ['moderator', 'data_scientist', 'game_designer', 'mathematician', 'player_advocate', 'producer', 'moderator'],
+    preferredRoles: ['moderator', 'data_scientist', 'game_designer', 'mathematician', 'player_advocate', 'producer'],
     roundCount: 2,
   },
 ];
