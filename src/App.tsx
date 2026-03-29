@@ -14,6 +14,7 @@ import {
   DEFAULT_PANEL_INSTANCE_IDS,
   DEFAULT_ROLE_VISIBILITY,
   ROLE_VISIBILITY_STORAGE_KEY,
+  PANEL_PRESETS_STORAGE_KEY,
 } from './constants';
 import { formatAttachmentsForContext } from './utils/fileParser';
 import { buildPresetModelMap, fetchOpenRouterCatalog } from './utils/modelCatalog';
@@ -30,6 +31,7 @@ import type {
   ModelOption,
   ModelTier,
   PersonalityTrait,
+  PanelMember,
 } from './types';
 
 const DEFAULT_PERSONALITY_TRAITS: PersonalityTrait[] = ['analytical'];
@@ -112,6 +114,12 @@ export default function App() {
   const [responseDelay, setResponseDelay] = useState(1500);
   const [selectedModelPreset, setSelectedModelPreset] = useState<string | null>(null);
   const [selectedPanelPreset, setSelectedPanelPreset] = useState<string | null>(null);
+  const [savedPanelPresets, setSavedPanelPresets] = useState<PanelPreset[]>(() => {
+    try {
+      const stored = localStorage.getItem(PANEL_PRESETS_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
   const [systemInstructions, setSystemInstructions] = useState('');
   const [interjectText, setInterjectText] = useState('');
   const [roleVisibility, setRoleVisibility] = useState<RoleVisibility>(() => loadRoleVisibility());
@@ -120,9 +128,11 @@ export default function App() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const interjectionRef = useRef<string[]>([]);
   const stopRequestedRef = useRef(false);
   const isPausedRef = useRef(false);
+  const conversationHistoryRef = useRef<Message[]>([]);
   const noteTakerConfigRef = useRef(noteTakerConfig);
   const participantsRef = useRef(participants);
   const responseDelayRef = useRef(responseDelay);
@@ -138,6 +148,10 @@ export default function App() {
   useEffect(() => {
     responseDelayRef.current = responseDelay;
   }, [responseDelay]);
+
+  useEffect(() => {
+    localStorage.setItem(PANEL_PRESETS_STORAGE_KEY, JSON.stringify(savedPanelPresets));
+  }, [savedPanelPresets]);
 
   useEffect(() => {
     localStorage.setItem(ROLE_VISIBILITY_STORAGE_KEY, JSON.stringify(roleVisibility));
@@ -198,7 +212,12 @@ export default function App() {
   }, [isPaused]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    if (isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   const handleSaveApiKey = (key: string) => {
@@ -312,6 +331,30 @@ export default function App() {
     }
   }, [roleVisibility]);
 
+  const handleSavePanelPreset = useCallback((label: string) => {
+    const roleCounts: Record<string, number> = {};
+    for (const p of participants) {
+      roleCounts[p.role] = (roleCounts[p.role] || 0) + 1;
+    }
+    const preset: PanelPreset = {
+      id: `user_${Date.now()}`,
+      label,
+      emoji: '💾',
+      description: `${participants.length} participants`,
+      participants: Object.entries(roleCounts).map(([role, count]) => ({
+        role: role as PanelMember,
+        count,
+      })),
+    };
+    setSavedPanelPresets((prev) => [...prev, preset]);
+    setSelectedPanelPreset(preset.id);
+  }, [participants]);
+
+  const handleDeletePanelPreset = useCallback((presetId: string) => {
+    setSavedPanelPresets((prev) => prev.filter((p) => p.id !== presetId));
+    setSelectedPanelPreset((prev) => prev === presetId ? null : prev);
+  }, []);
+
   const handleSelectDiscussionPreset = useCallback((preset: Preset) => {
     setSelectedPreset(preset);
     setRoundCount(preset.roundCount);
@@ -404,15 +447,22 @@ export default function App() {
       return a.label.localeCompare(b.label);
     });
 
-    const openingUserMsg: Message = {
-      id: generateId(),
-      role: 'user',
-      content: `🎯 **PANEL DISCUSSION BRIEF**\n\n**Topic:** ${topic}\n\n**Discussion Type:** ${selectedPreset?.label || 'General'}\n\n**Framing:** ${selectedPreset?.discussionPrompt || ''}\n\n---\n⚠️ Keep every response clearly anchored to this specific topic. Stay concrete and avoid drifting into generic slot design advice.${attachmentContext ? `\n\n**Reference Material Provided:**\n${attachmentContext}` : ''}`,
-      timestamp: new Date(),
-    };
+    const isContinuation = conversationHistoryRef.current.length > 0;
+    let conversationHistory: Message[];
 
-    setMessages((prev) => [...prev, openingUserMsg]);
-    let conversationHistory: Message[] = [openingUserMsg];
+    if (isContinuation) {
+      conversationHistory = [...conversationHistoryRef.current];
+    } else {
+      const openingUserMsg: Message = {
+        id: generateId(),
+        role: 'user',
+        content: `🎯 **PANEL DISCUSSION BRIEF**\n\n**Topic:** ${topic}\n\n**Discussion Type:** ${selectedPreset?.label || 'General'}\n\n**Framing:** ${selectedPreset?.discussionPrompt || ''}\n\n---\n⚠️ Keep every response clearly anchored to this specific topic. Stay concrete and avoid drifting into generic slot design advice.${attachmentContext ? `\n\n**Reference Material Provided:**\n${attachmentContext}` : ''}`,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, openingUserMsg]);
+      conversationHistory = [openingUserMsg];
+    }
 
     for (let round = 0; round < roundCount; round++) {
       if (stopRequestedRef.current) break;
@@ -540,6 +590,7 @@ export default function App() {
       }
     }
 
+    conversationHistoryRef.current = conversationHistory;
     setCurrentSpeakerId(null);
     setIsRunning(false);
   }, [topic, selectedPreset, roundCount, attachmentContext, generateMessage, generateNote]);
@@ -558,6 +609,7 @@ export default function App() {
     setAttachmentContext('');
     setInterjectionQueue([]);
     interjectionRef.current = [];
+    conversationHistoryRef.current = [];
     setCurrentRound(0);
     setNotes([]);
     setInterjectText('');
@@ -664,7 +716,7 @@ export default function App() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-4">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center select-none">
               <div className="mb-6 text-7xl animate-pulse">🎰</div>
@@ -700,12 +752,11 @@ export default function App() {
             </div>
           ) : (
             <>
-              {messages.map((msg, idx) => (
+              {messages.map((msg) => (
                 <ChatMessage
                   key={msg.id}
                   message={msg}
                   participants={participants}
-                  isLatest={idx === messages.length - 1}
                   isHighlighted={highlightedMessageId === msg.id}
                   onHighlight={msg.role === 'assistant' ? () => setHighlightedMessageId((prev) => prev === msg.id ? null : msg.id) : undefined}
                 />
@@ -795,6 +846,7 @@ export default function App() {
             onSelectDiscussionPreset={handleSelectDiscussionPreset}
             currentSpeakerId={currentSpeakerId}
             isRunning={isRunning}
+            hasHistory={messages.length > 0}
             onStart={runDiscussion}
             onStop={handleStop}
             onReset={handleReset}
@@ -826,6 +878,10 @@ export default function App() {
             onApplyPanelPreset={handleApplyPanelPreset}
             selectedPanelPreset={selectedPanelPreset}
             models={availableModels}
+            roleVisibility={roleVisibility}
+            savedPanelPresets={savedPanelPresets}
+            onSavePanelPreset={handleSavePanelPreset}
+            onDeletePanelPreset={handleDeletePanelPreset}
           />
         </div>
       </div>

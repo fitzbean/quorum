@@ -11,6 +11,7 @@ interface PanelSidebarProps {
   onSelectDiscussionPreset: (preset: Preset) => void;
   currentSpeakerId: string | null;
   isRunning: boolean;
+  hasHistory: boolean;
   onStart: () => void;
   onStop: () => void;
   onReset: () => void;
@@ -35,6 +36,7 @@ export function PanelSidebar({
   selectedPreset,
   onSelectDiscussionPreset,
   isRunning,
+  hasHistory,
   onStart,
   onStop,
   onReset,
@@ -144,7 +146,7 @@ export function PanelSidebar({
                   disabled={!topic.trim() || !apiKey || activeCount === 0}
                   className="w-full bg-gradient-to-r from-purple-600 to-amber-500 text-white font-semibold py-2 rounded-xl hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-xs flex items-center justify-center gap-1.5"
                 >
-                  <span>▶</span> Start Discussion
+                  <span>▶</span> {hasHistory ? 'Continue Discussion' : 'Start Discussion'}
                 </button>
               ) : (
                 <button

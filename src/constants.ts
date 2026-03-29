@@ -1,4 +1,4 @@
-import type { ModelOption, ParticipantPreset, Preset, PanelPreset, NoteDetailLevel, RoleVisibility, PanelMember } from './types';
+import type { ModelOption, ParticipantPreset, Preset, NoteDetailLevel, RoleVisibility, PanelMember } from './types';
 import { MODEL_PRESET_DEFINITIONS } from './utils/modelCatalog';
 
 export const NOTE_TAKER_DEFAULT_MODEL = 'google/gemini-2.0-flash-001';
@@ -399,194 +399,15 @@ export const DISCUSSION_PRESETS: Preset[] = [
     roundCount: 3,
   },
   {
-    id: 'compliance',
-    label: 'Compliance & Ethics',
-    emoji: '⚖️',
-    description: 'Regulatory requirements, responsible gambling, and ethical design',
+    id: 'gdd',
+    label: 'GDD Creation',
+    emoji: '📋',
+    description: 'Collaboratively draft a Game Design Document from scratch',
     discussionPrompt:
-      'Examine this concept through the lens of regulatory compliance and responsible gambling. How do we build a commercially successful slot while meeting regulatory requirements and protecting players?',
-    preferredRoles: ['moderator', 'psychologist', 'mathematician', 'engineer', 'game_designer', 'legal'],
-    roundCount: 2,
-  },
-  {
-    id: 'monetization',
-    label: 'Monetization Strategy',
-    emoji: '💎',
-    description: 'Revenue optimization, player lifetime value, and business model',
-    discussionPrompt:
-      'Analyze monetization strategies for maximum sustainable revenue. Consider RTP tiers, jackpot structures, social features, and player retention economics.',
-    preferredRoles: ['moderator', 'monetization', 'mathematician', 'psychologist', 'game_designer', 'data_scientist'],
-    roundCount: 2,
-  },
-  {
-    id: 'accessibility',
-    label: 'Accessibility & UX',
-    emoji: '♿',
-    description: 'Inclusive design, UX optimization, and broad market appeal',
-    discussionPrompt:
-      'How do we design this slot to be accessible to the widest possible audience while maintaining engagement? Discuss UX, accessibility standards, localization, and cross-platform consistency.',
-    preferredRoles: ['moderator', 'artist', 'psychologist', 'engineer', 'game_designer', 'player_advocate'],
-    roundCount: 2,
-  },
-  {
-    id: 'pitch',
-    label: 'Pitch & Greenlight',
-    emoji: '🚀',
-    description: 'Make the case for a new slot concept — sell it to the panel',
-    discussionPrompt:
-      'We are pitching this slot concept for greenlight. Each panelist should evaluate it from their expertise: is this commercially viable, technically feasible, creatively strong, and player-ready? Make your recommendation.',
-    preferredRoles: ['moderator', 'marketing', 'producer', 'game_designer', 'mathematician', 'engineer'],
-    roundCount: 2,
-  },
-  {
-    id: 'theme',
-    label: 'Theme & World-Building',
-    emoji: '🌍',
-    description: 'Build a rich, cohesive theme — story, art, audio, and lore',
-    discussionPrompt:
-      "Let's build a complete, cohesive theme world for this slot. Develop the visual identity, narrative lore, character roster, sound palette, and how the theme reinforces the mechanics.",
-    preferredRoles: ['moderator', 'narrative', 'artist', 'sound', 'game_designer', 'psychologist'],
-    roundCount: 2,
-  },
-  {
-    id: 'feature_sprint',
-    label: 'Feature Sprint',
-    emoji: '⚡',
-    description: 'Rapid-fire iteration on one specific feature or mechanic',
-    discussionPrompt:
-      'We are in a design sprint focused on one specific feature or problem. Iterate rapidly — build on each other\'s ideas, challenge assumptions, and converge on the best solution in minimal turns.',
-    preferredRoles: ['moderator', 'game_designer', 'engineer', 'mathematician', 'artist', 'qa'],
+      'We are drafting a Game Design Document for this slot concept. Cover all key sections: game overview, theme & art direction, math model & paytable, core mechanics & bonus features, sound design, target audience, technical requirements, and regulatory considerations. Each panelist should contribute from their expertise to build a comprehensive, production-ready GDD.',
+    preferredRoles: ['moderator', 'game_designer', 'mathematician', 'artist', 'engineer', 'narrative'],
     roundCount: 3,
   },
-  {
-    id: 'postmortem',
-    label: 'Post-Mortem Analysis',
-    emoji: '🔎',
-    description: 'Retrospective on what worked, what failed, and key learnings',
-    discussionPrompt:
-      'Conduct a thorough post-mortem on the provided material. What worked well? What failed and why? What would you do differently? Extract the key learnings for future projects.',
-    preferredRoles: ['moderator', 'data_scientist', 'game_designer', 'mathematician', 'player_advocate', 'producer'],
-    roundCount: 2,
-  },
 ];
 
-// ─── Panel Presets (pre-configured lineups) ──────────────────────────────────
-
-export const PANEL_PRESETS: PanelPreset[] = [
-  {
-    id: 'core_team',
-    label: 'Core Team',
-    emoji: '🎰',
-    description: 'The essential six — balanced generalist panel',
-    participants: [
-      { role: 'moderator', count: 1 },
-      { role: 'game_designer', count: 1 },
-      { role: 'mathematician', count: 1 },
-      { role: 'psychologist', count: 1 },
-      { role: 'artist', count: 1 },
-      { role: 'engineer', count: 1 },
-    ],
-  },
-  {
-    id: 'creative_powerhouse',
-    label: 'Creative Powerhouse',
-    emoji: '🎨',
-    description: 'Art, narrative & sound — theme and feel focused',
-    participants: [
-      { role: 'moderator', count: 1 },
-      { role: 'game_designer', count: 2 },
-      { role: 'artist', count: 1 },
-      { role: 'narrative', count: 1 },
-      { role: 'sound', count: 1 },
-      { role: 'psychologist', count: 1 },
-    ],
-    discussionPresetId: 'theme',
-  },
-  {
-    id: 'math_lab',
-    label: 'Math Lab',
-    emoji: '📐',
-    description: 'Heavy math & engineering — precision mechanics focus',
-    participants: [
-      { role: 'moderator', count: 1 },
-      { role: 'mathematician', count: 2 },
-      { role: 'engineer', count: 2 },
-      { role: 'game_designer', count: 1 },
-      { role: 'qa', count: 1 },
-    ],
-    discussionPresetId: 'mechanics',
-  },
-  {
-    id: 'boardroom',
-    label: 'Boardroom',
-    emoji: '💼',
-    description: 'Business, marketing & compliance — commercial focus',
-    participants: [
-      { role: 'moderator', count: 1 },
-      { role: 'producer', count: 1 },
-      { role: 'marketing', count: 1 },
-      { role: 'monetization', count: 1 },
-      { role: 'legal', count: 1 },
-      { role: 'data_scientist', count: 1 },
-    ],
-    discussionPresetId: 'pitch',
-  },
-  {
-    id: 'player_first',
-    label: 'Player First',
-    emoji: '🙋',
-    description: 'Ethics, UX & responsible gambling emphasis',
-    participants: [
-      { role: 'moderator', count: 1 },
-      { role: 'psychologist', count: 1 },
-      { role: 'player_advocate', count: 1 },
-      { role: 'legal', count: 1 },
-      { role: 'artist', count: 1 },
-      { role: 'game_designer', count: 1 },
-    ],
-    discussionPresetId: 'compliance',
-  },
-  {
-    id: 'full_studio',
-    label: 'Full Studio',
-    emoji: '🏢',
-    description: 'All departments — comprehensive deep dive',
-    participants: [
-      { role: 'moderator', count: 1 },
-      { role: 'game_designer', count: 2 },
-      { role: 'mathematician', count: 1 },
-      { role: 'psychologist', count: 1 },
-      { role: 'artist', count: 1 },
-      { role: 'engineer', count: 1 },
-      { role: 'narrative', count: 1 },
-      { role: 'producer', count: 1 },
-      { role: 'marketing', count: 1 },
-    ],
-  },
-  {
-    id: 'rival_designers',
-    label: 'Rival Designers',
-    emoji: '⚔️',
-    description: 'Multiple game designers debate competing approaches',
-    participants: [
-      { role: 'moderator', count: 1 },
-      { role: 'game_designer', count: 3 },
-      { role: 'mathematician', count: 1 },
-      { role: 'psychologist', count: 1 },
-    ],
-    discussionPresetId: 'brainstorm',
-  },
-  {
-    id: 'sprint_team',
-    label: 'Sprint Team',
-    emoji: '⚡',
-    description: 'Small, fast team for rapid feature iteration',
-    participants: [
-      { role: 'game_designer', count: 1 },
-      { role: 'engineer', count: 1 },
-      { role: 'mathematician', count: 1 },
-      { role: 'qa', count: 1 },
-    ],
-    discussionPresetId: 'feature_sprint',
-  },
-];
+export const PANEL_PRESETS_STORAGE_KEY = 'slotmind_panel_presets';

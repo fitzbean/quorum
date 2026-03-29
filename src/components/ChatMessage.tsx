@@ -1,23 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Message, ActiveParticipant } from '../types';
 
 interface ChatMessageProps {
   message: Message;
   participants: ActiveParticipant[];
-  isLatest?: boolean;
   isHighlighted?: boolean;
   onHighlight?: () => void;
 }
 
-export function ChatMessage({ message, participants, isLatest, isHighlighted = false, onHighlight }: ChatMessageProps) {
+export function ChatMessage({ message, participants, isHighlighted = false, onHighlight }: ChatMessageProps) {
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (isLatest) {
-      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
-  }, [message.content, isLatest]);
 
   const isUser = message.role === 'user';
   // Find by instanceId first, fallback to role match

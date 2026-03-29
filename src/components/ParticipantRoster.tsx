@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
-import { PARTICIPANT_PRESETS, PANEL_PRESETS } from '../constants';
+import { PARTICIPANT_PRESETS } from '../constants';
 import { PERSONALITY_TRAITS } from '../types';
-import type { ActiveParticipant, ParticipantPreset, PanelPreset, ModelOption, ModelTier, PersonalityTrait } from '../types';
+import type { ActiveParticipant, ParticipantPreset, PanelPreset, ModelOption, ModelTier, PersonalityTrait, RoleVisibility } from '../types';
 import { formatModelPricePerThousand } from '../utils/modelCatalog';
 
 interface ParticipantRosterProps {
@@ -18,6 +18,10 @@ interface ParticipantRosterProps {
   onApplyPanelPreset: (preset: PanelPreset) => void;
   selectedPanelPreset: string | null;
   models: ModelOption[];
+  roleVisibility: RoleVisibility;
+  savedPanelPresets: PanelPreset[];
+  onSavePanelPreset: (label: string) => void;
+  onDeletePanelPreset: (presetId: string) => void;
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -52,19 +56,30 @@ export function ParticipantRoster({
   onApplyPanelPreset,
   selectedPanelPreset,
   models,
+  roleVisibility,
+  savedPanelPresets,
+  onSavePanelPreset,
+  onDeletePanelPreset,
 }: ParticipantRosterProps) {
   const [showSpawner, setShowSpawner] = useState(false);
   const [showPanelPresets, setShowPanelPresets] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [infoPopupId, setInfoPopupId] = useState<string | null>(null);
   const [spawnerCategory, setSpawnerCategory] = useState<string>('all');
+  const [savePresetName, setSavePresetName] = useState('');
   const infoPopupRef = useRef<HTMLDivElement | null>(null);
 
   const categories = ['all', 'core', 'creative', 'technical', 'business', 'specialist'];
 
-  const filteredPresets = spawnerCategory === 'all'
+  const filteredPresets = (spawnerCategory === 'all'
     ? PARTICIPANT_PRESETS
-    : PARTICIPANT_PRESETS.filter((p) => p.category === spawnerCategory);
+    : PARTICIPANT_PRESETS.filter((p) => p.category === spawnerCategory)
+  ).slice().sort((a, b) => {
+    const aEnabled = roleVisibility[a.role] !== false;
+    const bEnabled = roleVisibility[b.role] !== false;
+    if (aEnabled !== bEnabled) return aEnabled ? -1 : 1;
+    return 0;
+  });
 
   const selectedModelTier = (selectedModelId: string): ModelTier | null => {
     const match = models.find((model) => model.id === selectedModelId);
@@ -130,47 +145,96 @@ export function ParticipantRoster({
       {showPanelPresets && (
         <div className="border-b border-gray-700/50 bg-gray-900/95 flex-shrink-0 max-h-72 overflow-y-auto">
           <div className="px-3 py-2">
-            <p className="text-[10px] text-gray-500 mb-2 uppercase tracking-wider font-semibold">Panel Lineup Presets</p>
-            <div className="flex flex-col gap-1.5">
-              {PANEL_PRESETS.map((preset) => {
-                const isSelected = selectedPanelPreset === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    onClick={() => {
-                      onApplyPanelPreset(preset);
-                      setShowPanelPresets(false);
+            {/* Save current panel */}
+            {participants.length > 0 && (
+              <div className="mb-2">
+                <p className="text-[10px] text-gray-500 mb-1 uppercase tracking-wider font-semibold">Save Current Panel</p>
+                <div className="flex gap-1">
+                  <input
+                    value={savePresetName}
+                    onChange={(e) => setSavePresetName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && savePresetName.trim()) {
+                        onSavePanelPreset(savePresetName.trim());
+                        setSavePresetName('');
+                      }
                     }}
-                    className={`text-left px-2.5 py-2 rounded-lg border transition-all group ${
-                      isSelected
-                        ? 'bg-purple-800/50 border-purple-400/70 ring-1 ring-purple-400/30'
-                        : 'bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-purple-500/50'
-                    }`}
+                    placeholder="Preset name..."
+                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg text-[11px] text-gray-200 px-2 py-1.5 focus:outline-none focus:border-purple-500"
+                  />
+                  <button
+                    onClick={() => {
+                      if (savePresetName.trim()) {
+                        onSavePanelPreset(savePresetName.trim());
+                        setSavePresetName('');
+                      }
+                    }}
+                    disabled={!savePresetName.trim()}
+                    className="px-2.5 py-1.5 rounded-lg bg-purple-700/60 border border-purple-500/50 text-[10px] text-purple-200 hover:bg-purple-600/70 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-base">{preset.emoji}</span>
-                      <span className={`text-xs font-semibold transition-colors ${isSelected ? 'text-purple-200' : 'text-white group-hover:text-purple-300'}`}>
-                        {preset.label}
-                      </span>
-                      {isSelected && (
-                        <span className="ml-auto text-[9px] bg-purple-500/40 text-purple-200 px-1.5 py-0.5 rounded-full">✓ Active</span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{preset.description}</p>
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {preset.participants.map((p, i) => {
-                        const pp = PARTICIPANT_PRESETS.find(r => r.role === p.role);
-                        return pp ? (
-                          <span key={i} className="text-[9px] bg-gray-700 px-1.5 py-0.5 rounded-full text-gray-300">
-                            {pp.emoji} {pp.label}{p.count > 1 ? ` ×${p.count}` : ''}
-                          </span>
-                        ) : null;
-                      })}
-                    </div>
+                    💾 Save
                   </button>
-                );
-              })}
-            </div>
+                </div>
+              </div>
+            )}
+
+            {/* Saved presets list */}
+            {savedPanelPresets.length > 0 ? (
+              <>
+                <p className="text-[10px] text-gray-500 mb-2 uppercase tracking-wider font-semibold">Saved Lineups</p>
+                <div className="flex flex-col gap-1.5">
+                  {savedPanelPresets.map((preset) => {
+                    const isSelected = selectedPanelPreset === preset.id;
+                    return (
+                      <div
+                        key={preset.id}
+                        className={`text-left px-2.5 py-2 rounded-lg border transition-all group ${
+                          isSelected
+                            ? 'bg-purple-800/50 border-purple-400/70 ring-1 ring-purple-400/30'
+                            : 'bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-purple-500/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            className="flex-1 text-left flex items-center gap-1.5 min-w-0"
+                            onClick={() => {
+                              onApplyPanelPreset(preset);
+                              setShowPanelPresets(false);
+                            }}
+                          >
+                            <span className={`text-xs font-semibold transition-colors truncate ${isSelected ? 'text-purple-200' : 'text-white group-hover:text-purple-300'}`}>
+                              {preset.label}
+                            </span>
+                            {isSelected && (
+                              <span className="text-[9px] bg-purple-500/40 text-purple-200 px-1.5 py-0.5 rounded-full flex-shrink-0">✓ Active</span>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => onDeletePanelPreset(preset.id)}
+                            title="Delete preset"
+                            className="w-5 h-5 rounded flex items-center justify-center text-[10px] text-gray-600 hover:text-red-400 hover:bg-red-900/50 transition-all flex-shrink-0"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {preset.participants.map((p, i) => {
+                            const pp = PARTICIPANT_PRESETS.find(r => r.role === p.role);
+                            return pp ? (
+                              <span key={i} className="text-[9px] bg-gray-700 px-1.5 py-0.5 rounded-full text-gray-300">
+                                {pp.emoji} {pp.label}{p.count > 1 ? ` ×${p.count}` : ''}
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <p className="text-[10px] text-gray-500 text-center py-2">No saved presets yet. Build a panel and save it above.</p>
+            )}
           </div>
         </div>
       )}
@@ -200,23 +264,32 @@ export function ParticipantRoster({
             <div className="flex flex-col gap-1">
               {filteredPresets.map((preset) => {
                 const count = participants.filter(p => p.role === preset.role).length;
+                const isDisabled = roleVisibility[preset.role] === false;
                 return (
                   <button
                     key={preset.role}
-                    onClick={() => onAdd(preset)}
-                    className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all border ${preset.borderColor} ${preset.bgColor} hover:opacity-90`}
+                    onClick={() => !isDisabled && onAdd(preset)}
+                    disabled={isDisabled}
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all border ${
+                      isDisabled
+                        ? 'opacity-35 border-gray-700/40 bg-gray-800/30 cursor-not-allowed grayscale'
+                        : `${preset.borderColor} ${preset.bgColor} hover:opacity-90`
+                    }`}
                   >
                     <span className="text-lg flex-shrink-0">{preset.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className={`text-xs font-semibold ${preset.color}`}>{preset.label}</span>
-                        {count > 0 && (
+                        <span className={`text-xs font-semibold ${isDisabled ? 'text-gray-500' : preset.color}`}>{preset.label}</span>
+                        {isDisabled && (
+                          <span className="text-[9px] bg-gray-700/50 px-1.5 rounded-full text-gray-500">disabled</span>
+                        )}
+                        {!isDisabled && count > 0 && (
                           <span className="text-[9px] bg-white/10 px-1.5 rounded-full text-gray-300">×{count}</span>
                         )}
                       </div>
                       <p className="text-[10px] text-gray-500 leading-tight truncate">{preset.description}</p>
                     </div>
-                    <span className="text-gray-500 text-sm flex-shrink-0">＋</span>
+                    {!isDisabled && <span className="text-gray-500 text-sm flex-shrink-0">＋</span>}
                   </button>
                 );
               })}
