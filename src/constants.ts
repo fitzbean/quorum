@@ -376,7 +376,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     discussionPrompt:
       "Let's brainstorm innovative slot machine concepts that haven't been done before. Think about unique mechanics, unexpected themes, and boundary-pushing features. What could the next generation of slots look like?",
     preferredRoles: ['moderator', 'game_designer', 'artist', 'psychologist', 'mathematician', 'engineer'],
-    roundCount: 2,
+    durationSeconds: 180,
   },
   {
     id: 'critique',
@@ -386,7 +386,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     discussionPrompt:
       'Critically evaluate the provided material. Identify strengths, weaknesses, and specific areas for improvement from each of your expert perspectives.',
     preferredRoles: ['moderator', 'mathematician', 'psychologist', 'engineer', 'game_designer', 'artist'],
-    roundCount: 2,
+    durationSeconds: 180,
   },
   {
     id: 'mechanics',
@@ -396,7 +396,7 @@ export const DISCUSSION_PRESETS: Preset[] = [
     discussionPrompt:
       'Deep dive into slot mechanics: math model, core loop, bonus features, and technical architecture. How do we optimize for player engagement while maintaining regulatory compliance?',
     preferredRoles: ['moderator', 'mathematician', 'game_designer', 'engineer', 'psychologist', 'artist'],
-    roundCount: 3,
+    durationSeconds: 300,
   },
   {
     id: 'gdd',
@@ -406,8 +406,11 @@ export const DISCUSSION_PRESETS: Preset[] = [
     discussionPrompt:
       'We are drafting a Game Design Document for this slot concept. Cover all key sections: game overview, theme & art direction, math model & paytable, core mechanics & bonus features, sound design, target audience, technical requirements, and regulatory considerations. Each panelist should contribute from their expertise to build a comprehensive, production-ready GDD.',
     preferredRoles: ['moderator', 'game_designer', 'mathematician', 'artist', 'engineer', 'narrative'],
-    roundCount: 3,
+    durationSeconds: 300,
   },
 ];
 
 export const PANEL_PRESETS_STORAGE_KEY = 'slotmind_panel_presets';
+export const TRAITS_STORAGE_KEY = 'slotmind_personality_traits';
+export const MODELS_STORAGE_KEY = 'slotmind_participant_models';
+export const TRAITS_LIST_STORAGE_KEY = 'slotmind_traits_list';

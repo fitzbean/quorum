@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { MODEL_PRESETS, DISCUSSION_PRESETS, PARTICIPANT_PRESETS } from '../constants';
-import type { ActiveParticipant, Preset, RoleVisibility, PanelMember, ModelOption, ModelTier } from '../types';
+import { MODEL_PRESETS, DISCUSSION_PRESETS } from '../constants';
+import { APP_NAME, APP_BYLINE } from '../appConfig';
+import type { ActiveParticipant, Preset, ModelOption, ModelTier } from '../types';
 import { getModelsForTier, MODEL_TIER_ORDER } from '../utils/modelCatalog';
 import { Zap, Settings, ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -18,13 +19,11 @@ interface PanelSidebarProps {
   apiKey: string;
   topic: string;
   onTopicChange: (t: string) => void;
-  roundCount: number;
-  onRoundCountChange: (n: number) => void;
+  durationSeconds: number;
+  onDurationChange: (s: number) => void;
   responseDelay: number;
   onResponseDelayChange: (ms: number) => void;
   selectedModelPreset: string | null;
-  roleVisibility: RoleVisibility;
-  onToggleRoleVisibility: (role: PanelMember) => void;
   availableModels: ModelOption[];
 }
 
@@ -43,13 +42,11 @@ export function PanelSidebar({
   apiKey,
   topic,
   onTopicChange,
-  roundCount,
-  onRoundCountChange,
+  durationSeconds,
+  onDurationChange,
   responseDelay,
   onResponseDelayChange,
   selectedModelPreset,
-  roleVisibility,
-  onToggleRoleVisibility,
   availableModels,
 }: PanelSidebarProps) {
   const [topicOpen, setTopicOpen] = useState(true);
@@ -65,17 +62,15 @@ export function PanelSidebar({
       ? `${responseDelay}ms`
       : `${(responseDelay / 1000).toFixed(1)}s`;
 
-  const visibleRoles = PARTICIPANT_PRESETS;
-
   return (
     <div className="flex flex-col bg-gray-900 border-l border-gray-700/50 overflow-y-auto h-full">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-700/50 flex-shrink-0">
         <div className="flex items-center gap-2 mb-0.5">
           <span className="text-xl">🎰</span>
-          <h1 className="text-sm font-bold text-white">SlotMind AI</h1>
+          <h1 className="text-sm font-bold text-white">{APP_NAME}</h1>
         </div>
-        <p className="text-[10px] text-gray-500">Casino Slot Design Panel</p>
+        <p className="text-[10px] text-gray-500">{APP_BYLINE}</p>
       </div>
 
       {/* ── TOPIC / BRIEF ── collapsible */}
@@ -99,26 +94,27 @@ export function PanelSidebar({
               value={topic}
               onChange={(e) => onTopicChange(e.target.value)}
               placeholder="What should the panel discuss? E.g. 'Design a Norse mythology slot with a progressive jackpot and Megaways mechanic…'"
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl text-xs text-gray-300 placeholder-gray-600 px-2.5 py-2 h-14 resize-none focus:outline-none focus:border-purple-500"
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl text-xs text-gray-300 placeholder-gray-600 px-2.5 py-2 h-24 resize-none focus:outline-none focus:border-purple-500"
               disabled={isRunning}
             />
 
-            {/* Rounds + Speed sliders */}
+            {/* Duration + Speed sliders */}
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
-                  Rounds <span className="text-purple-400 normal-case">{roundCount}</span>
+                  Duration <span className="text-purple-400 normal-case">{Math.round(durationSeconds / 60)}m</span>
                 </label>
                 <input
                   type="range"
-                  min={1}
-                  max={5}
-                  value={roundCount}
-                  onChange={(e) => onRoundCountChange(Number(e.target.value))}
+                  min={60}
+                  max={900}
+                  step={60}
+                  value={durationSeconds}
+                  onChange={(e) => onDurationChange(Number(e.target.value))}
                   disabled={isRunning}
                   className="w-full accent-purple-500"
                 />
-                <p className="text-[9px] text-gray-600 mt-0.5">~{activeCount * roundCount} msgs</p>
+                <p className="text-[9px] text-gray-600 mt-0.5">{Math.round(durationSeconds / 60)} min target</p>
               </div>
 
               <div>
@@ -276,45 +272,6 @@ export function PanelSidebar({
               </div>
             )}
 
-            {activeTab === 'discussion' && (
-              <div className="px-3 pt-3">
-                <div className="rounded-xl border border-gray-700 bg-gray-800/60 p-2.5">
-                  <div className="mb-2 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                        Role Visibility
-                      </p>
-                      <p className="text-[10px] text-gray-600">Disable roles you never want to add or auto-load.</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1">
-                    {visibleRoles.map((preset) => {
-                      const enabled = roleVisibility[preset.role];
-                      return (
-                        <button
-                          key={preset.role}
-                          type="button"
-                          onClick={() => onToggleRoleVisibility(preset.role)}
-                          className={`rounded-lg border px-2 py-1.5 text-left text-xs transition-all ${
-                            enabled
-                              ? 'border-gray-700 bg-gray-900 text-gray-200 hover:border-purple-500/50'
-                              : 'border-gray-800 bg-gray-950 text-gray-500 opacity-70'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <span>{preset.emoji}</span>
-                            <span className="truncate font-medium">{preset.label}</span>
-                          </div>
-                          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-gray-500">
-                            {enabled ? 'Enabled' : 'Disabled'}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>

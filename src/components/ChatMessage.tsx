@@ -1,6 +1,17 @@
 import { useRef } from 'react';
+import { Download } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Message, ActiveParticipant } from '../types';
+
+function downloadMarkdown(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.endsWith('.md') ? filename : `${filename}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 interface ChatMessageProps {
   message: Message;
@@ -93,7 +104,27 @@ export function ChatMessage({ message, participants, isHighlighted = false, onHi
             </span>
           )}
         </div>
-        <div className={`${member.bgColor} border ${isHighlighted ? 'border-cyan-400 ring-1 ring-cyan-400/50' : member.borderColor} rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed text-gray-100`}>
+        <div className={`${member.bgColor} border ${isHighlighted ? 'border-cyan-400 ring-1 ring-cyan-400/50' : message.isArtifact ? 'border-emerald-600/50 ring-1 ring-emerald-700/30' : member.borderColor} rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed text-gray-100`}>
+          {message.isArtifact && !message.isStreaming && (
+            <div className="mb-3 flex items-center justify-between gap-2 border-b border-emerald-700/30 pb-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
+                Markdown Artifact{message.artifactTitle ? ` · ${message.artifactTitle}` : ''}
+              </span>
+              <button
+                onClick={() =>
+                  downloadMarkdown(
+                    message.content,
+                    message.artifactTitle ?? 'artifact'
+                  )
+                }
+                title="Download as .md file"
+                className="flex items-center gap-1 rounded-md border border-emerald-600/40 bg-emerald-900/30 px-2 py-0.5 text-[10px] text-emerald-300 transition-all hover:bg-emerald-800/40"
+              >
+                <Download className="h-3 w-3" />
+                Download .md
+              </button>
+            </div>
+          )}
           <div className="prose prose-invert prose-sm max-w-none break-words">
             <ReactMarkdown>{message.content || '\u00a0'}</ReactMarkdown>
           </div>

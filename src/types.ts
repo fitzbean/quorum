@@ -47,9 +47,11 @@ export interface Message {
   isStreaming?: boolean;
   attachments?: Attachment[];
   highlightedMessageId?: string;
+  isArtifact?: boolean;
+  artifactTitle?: string;
 }
 
-export const PERSONALITY_TRAITS = [
+export const PERSONALITY_TRAITS: string[] = [
   'analytical',
   'blunt',
   'diplomatic',
@@ -60,9 +62,9 @@ export const PERSONALITY_TRAITS = [
   'provocative',
   'playful',
   'visionary',
-] as const;
+];
 
-export type PersonalityTrait = (typeof PERSONALITY_TRAITS)[number];
+export type PersonalityTrait = string;
 
 export interface Attachment {
   id: string;
@@ -154,7 +156,7 @@ export interface Preset {
   description: string;
   discussionPrompt: string;
   preferredRoles: PanelMember[]; // suggested speaking order roles
-  roundCount: number;
+  durationSeconds: number;
 }
 
 // A named discussion panel configuration (preset lineup of participants)
@@ -163,7 +165,7 @@ export interface PanelPreset {
   label: string;
   emoji: string;
   description: string;
-  participants: Array<{ role: PanelMember; count: number }>;
+  participants: Array<{ role: PanelMember; count: number; traits?: PersonalityTrait[][]; models?: string[] }>;
   discussionPresetId?: string;
 }
 

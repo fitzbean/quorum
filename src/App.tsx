@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Hand, Pause, Play, Send, Settings } from 'lucide-react';
+import { APP_NAME, APP_TITLE } from './appConfig';
+import { FileText, GitBranch, LayoutList, Hand, Pause, Play, Send, Settings, X } from 'lucide-react';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { ChatMessage } from './components/ChatMessage';
 import { ContextPanel } from './components/ContextPanel';
@@ -15,9 +16,13 @@ import {
   DEFAULT_ROLE_VISIBILITY,
   ROLE_VISIBILITY_STORAGE_KEY,
   PANEL_PRESETS_STORAGE_KEY,
+  TRAITS_STORAGE_KEY,
+  MODELS_STORAGE_KEY,
+  TRAITS_LIST_STORAGE_KEY,
 } from './constants';
 import { formatAttachmentsForContext } from './utils/fileParser';
 import { buildPresetModelMap, fetchOpenRouterCatalog } from './utils/modelCatalog';
+import { PERSONALITY_TRAITS } from './types';
 import type {
   Message,
   ActiveParticipant,
@@ -38,11 +43,25 @@ const DEFAULT_PERSONALITY_TRAITS: PersonalityTrait[] = ['analytical'];
 
 const STORAGE_KEY = 'slotmind_api_key';
 
+function loadSavedTraits(): Record<string, PersonalityTrait[]> {
+  try {
+    const raw = localStorage.getItem(TRAITS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function loadSavedModels(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(MODELS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
 function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-function makeParticipant(preset: ParticipantPreset, instanceId: string, label?: string): ActiveParticipant {
+function makeParticipant(preset: ParticipantPreset, instanceId: string, label?: string, savedTraits?: Record<string, PersonalityTrait[]>, savedModels?: Record<string, string>): ActiveParticipant {
   return {
     instanceId,
     role: preset.role,
@@ -51,19 +70,21 @@ function makeParticipant(preset: ParticipantPreset, instanceId: string, label?: 
     color: preset.color,
     bgColor: preset.bgColor,
     borderColor: preset.borderColor,
-    selectedModel: preset.defaultModel,
+    selectedModel: savedModels?.[instanceId] ?? preset.defaultModel,
     systemPrompt: preset.systemPrompt,
     isActive: true,
-    personalityTraits: [...DEFAULT_PERSONALITY_TRAITS],
+    personalityTraits: savedTraits?.[instanceId] ?? [...DEFAULT_PERSONALITY_TRAITS],
   };
 }
 
 function buildDefaultPanel(): ActiveParticipant[] {
+  const savedTraits = loadSavedTraits();
+  const savedModels = loadSavedModels();
   return DEFAULT_PANEL_INSTANCE_IDS.map((instanceId) => {
     const role = instanceId.replace(/_\d+$/, '') as ActiveParticipant['role'];
     const preset = PARTICIPANT_PRESETS.find((p) => p.role === role);
     if (!preset) return null;
-    return makeParticipant(preset, instanceId);
+    return makeParticipant(preset, instanceId, undefined, savedTraits, savedModels);
   }).filter(Boolean) as ActiveParticipant[];
 }
 
@@ -101,10 +122,10 @@ export default function App() {
   const [currentSpeakerId, setCurrentSpeakerId] = useState<string | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<Preset>(DISCUSSION_PRESETS[0]);
   const [topic, setTopic] = useState('');
-  const [roundCount, setRoundCount] = useState(2);
+  const [durationSeconds, setDurationSeconds] = useState(180);
   const [attachmentContext, setAttachmentContext] = useState('');
   const [interjectionQueue, setInterjectionQueue] = useState<string[]>([]);
-  const [currentRound, setCurrentRound] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [notes, setNotes] = useState<NoteEntry[]>([]);
   const [noteTakerConfig, setNoteTakerConfig] = useState<NoteTakerConfig>({
     selectedModel: NOTE_TAKER_DEFAULT_MODEL,
@@ -124,8 +145,19 @@ export default function App() {
   const [interjectText, setInterjectText] = useState('');
   const [roleVisibility, setRoleVisibility] = useState<RoleVisibility>(() => loadRoleVisibility());
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
+  const [customTraits, setCustomTraits] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(TRAITS_LIST_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [...PERSONALITY_TRAITS];
+    } catch { return [...PERSONALITY_TRAITS]; }
+  });
   const [isPaused, setIsPaused] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [showArtifactForm, setShowArtifactForm] = useState(false);
+  const [artifactDocType, setArtifactDocType] = useState('');
+  const [isGeneratingArtifact, setIsGeneratingArtifact] = useState(false);
+  const [isGeneratingAnalysis, setIsGeneratingAnalysis] = useState(false);
+  const [isGeneratingRecap, setIsGeneratingRecap] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -154,8 +186,23 @@ export default function App() {
   }, [savedPanelPresets]);
 
   useEffect(() => {
+    const traits: Record<string, PersonalityTrait[]> = {};
+    const models: Record<string, string> = {};
+    for (const p of participants) {
+      traits[p.instanceId] = p.personalityTraits;
+      models[p.instanceId] = p.selectedModel;
+    }
+    localStorage.setItem(TRAITS_STORAGE_KEY, JSON.stringify(traits));
+    localStorage.setItem(MODELS_STORAGE_KEY, JSON.stringify(models));
+  }, [participants]);
+
+  useEffect(() => {
     localStorage.setItem(ROLE_VISIBILITY_STORAGE_KEY, JSON.stringify(roleVisibility));
   }, [roleVisibility]);
+
+  useEffect(() => {
+    localStorage.setItem(TRAITS_LIST_STORAGE_KEY, JSON.stringify(customTraits));
+  }, [customTraits]);
 
   useEffect(() => {
     let cancelled = false;
@@ -197,7 +244,7 @@ export default function App() {
     }
   }, [availableModels]);
 
-  const { generateMessage, generateNote, stopGeneration } = useOpenRouter({
+  const { generateMessage, generateNote, generateArtifact, generateAnalysis, generateRecap, stopGeneration } = useOpenRouter({
     apiKey,
     participants,
     systemInstructions,
@@ -229,11 +276,13 @@ export default function App() {
 
   const handleAddParticipant = useCallback((preset: ParticipantPreset) => {
     if (!roleVisibility[preset.role]) return;
+    const savedTraits = loadSavedTraits();
+    const savedModels = loadSavedModels();
     setParticipants((prev) => {
       const count = prev.filter((p) => p.role === preset.role).length + 1;
       const instanceId = `${preset.role}_${count}`;
       const label = count > 1 ? `${preset.label} #${count}` : preset.label;
-      return [...prev, makeParticipant(preset, instanceId, label)];
+      return [...prev, makeParticipant(preset, instanceId, label, savedTraits, savedModels)];
     });
   }, [roleVisibility]);
 
@@ -304,8 +353,10 @@ export default function App() {
   const handleApplyPanelPreset = useCallback((panelPreset: PanelPreset) => {
     const newParticipants: ActiveParticipant[] = [];
     const roleCounters: Record<string, number> = {};
+    const savedTraits = loadSavedTraits();
+    const savedModels = loadSavedModels();
 
-    for (const { role, count } of panelPreset.participants) {
+    for (const { role, count, traits: slotTraits, models: slotModels } of panelPreset.participants) {
       const preset = PARTICIPANT_PRESETS.find((p) => p.role === role);
       if (!preset) continue;
       if (!roleVisibility[role]) continue;
@@ -315,7 +366,10 @@ export default function App() {
         const n = roleCounters[role];
         const instanceId = `${role}_${n}`;
         const label = count > 1 ? `${preset.label} #${n}` : preset.label;
-        newParticipants.push(makeParticipant(preset, instanceId, label));
+        // Prefer traits/models stored in the preset; fall back to global localStorage
+        const traitsOverride = slotTraits?.[i] ? { [instanceId]: slotTraits[i] } : savedTraits;
+        const modelsOverride = slotModels?.[i] ? { [instanceId]: slotModels[i] } : savedModels;
+        newParticipants.push(makeParticipant(preset, instanceId, label, traitsOverride, modelsOverride));
       }
     }
 
@@ -326,28 +380,53 @@ export default function App() {
       const discussionPreset = DISCUSSION_PRESETS.find((d) => d.id === panelPreset.discussionPresetId);
       if (discussionPreset) {
         setSelectedPreset(discussionPreset);
-        setRoundCount(discussionPreset.roundCount);
+        setDurationSeconds(discussionPreset.durationSeconds);
       }
     }
   }, [roleVisibility]);
 
   const handleSavePanelPreset = useCallback((label: string) => {
-    const roleCounts: Record<string, number> = {};
+    const roleGroups: Record<string, ActiveParticipant[]> = {};
     for (const p of participants) {
-      roleCounts[p.role] = (roleCounts[p.role] || 0) + 1;
+      if (!roleGroups[p.role]) roleGroups[p.role] = [];
+      roleGroups[p.role].push(p);
     }
     const preset: PanelPreset = {
       id: `user_${Date.now()}`,
       label,
       emoji: '💾',
       description: `${participants.length} participants`,
-      participants: Object.entries(roleCounts).map(([role, count]) => ({
+      participants: Object.entries(roleGroups).map(([role, ps]) => ({
         role: role as PanelMember,
-        count,
+        count: ps.length,
+        traits: ps.map((p) => p.personalityTraits),
+        models: ps.map((p) => p.selectedModel),
       })),
     };
     setSavedPanelPresets((prev) => [...prev, preset]);
     setSelectedPanelPreset(preset.id);
+  }, [participants]);
+
+  const handleUpdatePanelPreset = useCallback((presetId: string) => {
+    const roleGroups: Record<string, ActiveParticipant[]> = {};
+    for (const p of participants) {
+      if (!roleGroups[p.role]) roleGroups[p.role] = [];
+      roleGroups[p.role].push(p);
+    }
+    setSavedPanelPresets((prev) =>
+      prev.map((preset) => {
+        if (preset.id !== presetId) return preset;
+        return {
+          ...preset,
+          participants: Object.entries(roleGroups).map(([role, ps]) => ({
+            role: role as PanelMember,
+            count: ps.length,
+            traits: ps.map((p) => p.personalityTraits),
+            models: ps.map((p) => p.selectedModel),
+          })),
+        };
+      })
+    );
   }, [participants]);
 
   const handleDeletePanelPreset = useCallback((presetId: string) => {
@@ -355,9 +434,19 @@ export default function App() {
     setSelectedPanelPreset((prev) => prev === presetId ? null : prev);
   }, []);
 
+  const handleAddTrait = useCallback((trait: string) => {
+    const normalized = trait.trim().toLowerCase().replace(/\s+/g, '_');
+    if (!normalized) return;
+    setCustomTraits((prev) => prev.includes(normalized) ? prev : [...prev, normalized]);
+  }, []);
+
+  const handleRemoveTrait = useCallback((trait: string) => {
+    setCustomTraits((prev) => prev.filter((t) => t !== trait));
+  }, []);
+
   const handleSelectDiscussionPreset = useCallback((preset: Preset) => {
     setSelectedPreset(preset);
-    setRoundCount(preset.roundCount);
+    setDurationSeconds(preset.durationSeconds);
   }, []);
 
   const handleUserMessage = useCallback((text: string, attachments: Attachment[]) => {
@@ -419,6 +508,90 @@ export default function App() {
     setInterjectText('');
   }, [handleInterject, interjectText, isRunning]);
 
+  const handleSolicitResponse = useCallback(async () => {
+    const value = interjectText.trim();
+    if (!value || conversationHistoryRef.current.length === 0) return;
+
+    // Determine target: the author of the highlighted message, falling back to the moderator
+    const highlightedMsg = highlightedMessageId
+      ? messages.find((m) => m.id === highlightedMessageId)
+      : null;
+    const highlightedParticipant = highlightedMsg?.instanceId
+      ? participantsRef.current.find((p) => p.instanceId === highlightedMsg.instanceId && p.isActive)
+      : null;
+    const moderator = participantsRef.current.find((p) => p.role === 'moderator' && p.isActive);
+    const target = highlightedParticipant ?? moderator ?? participantsRef.current.find((p) => p.isActive);
+    if (!target) return;
+
+    setInterjectText('');
+    setHighlightedMessageId(null);
+
+    // Build context prefix mirroring handleInterject
+    const highlightedSpeakerLabel = highlightedParticipant?.label ?? null;
+    const contextPrefix = highlightedMsg
+      ? `About ${highlightedSpeakerLabel ? `${highlightedSpeakerLabel}'s` : 'the selected'} message: "${highlightedMsg.content.trim().slice(0, 240)}"\n\n`
+      : '';
+    const fullText = `${contextPrefix}${value}`.trim();
+
+    // Add moderator-defer hint when the target is the moderator so they can route
+    const isModerator = target.role === 'moderator';
+    const solicitHint = isModerator
+      ? '\n\n[You may invite a specific panelist to respond directly if that is more appropriate.]'
+      : '';
+
+    const userMsg: Message = {
+      id: generateId(),
+      role: 'user',
+      content: `✋ **[Direct prompt → ${target.emoji} ${target.label}]** ${value}`,
+      timestamp: new Date(),
+      highlightedMessageId: highlightedMessageId ?? undefined,
+    };
+    setMessages((prev) => [...prev, userMsg]);
+
+    const injectionMsg: Message = { ...userMsg, content: `${fullText}${solicitHint}` };
+    const history = [...conversationHistoryRef.current, injectionMsg];
+
+    const msgId = generateId();
+    const pendingMsg: Message = {
+      id: msgId,
+      role: 'assistant',
+      panelMember: target.role,
+      instanceId: target.instanceId,
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true,
+    };
+    setMessages((prev) => [...prev, pendingMsg]);
+    setCurrentSpeakerId(target.instanceId);
+
+    let fullContent = '';
+    await new Promise<void>((resolve) => {
+      generateMessage(
+        target.instanceId,
+        history,
+        topic,
+        attachmentContext,
+        (chunk) => {
+          fullContent += chunk;
+          setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent } : m)));
+        },
+        () => {
+          setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false } : m)));
+          conversationHistoryRef.current = [...history, { ...pendingMsg, content: fullContent, isStreaming: false }];
+          resolve();
+        },
+        (err) => {
+          const errContent = `⚠️ *Error: ${err}*`;
+          setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: errContent, isStreaming: false } : m)));
+          conversationHistoryRef.current = [...history, { ...pendingMsg, content: errContent, isStreaming: false }];
+          resolve();
+        }
+      );
+    });
+
+    setCurrentSpeakerId(null);
+  }, [interjectText, highlightedMessageId, messages, topic, attachmentContext, generateMessage]);
+
   const handleTogglePause = useCallback(() => {
     if (!isRunning) return;
     setIsPaused((prev) => !prev);
@@ -432,7 +605,8 @@ export default function App() {
 
     setIsRunning(true);
     stopRequestedRef.current = false;
-    setCurrentRound(0);
+    setElapsedSeconds(0);
+    const discussionStartTime = Date.now();
 
     const preferredRoles = selectedPreset?.preferredRoles || [];
     const rolePriority = new Map(preferredRoles.map((role, index) => [role, index]));
@@ -456,7 +630,7 @@ export default function App() {
       const openingUserMsg: Message = {
         id: generateId(),
         role: 'user',
-        content: `🎯 **PANEL DISCUSSION BRIEF**\n\n**Topic:** ${topic}\n\n**Discussion Type:** ${selectedPreset?.label || 'General'}\n\n**Framing:** ${selectedPreset?.discussionPrompt || ''}\n\n---\n⚠️ Keep every response clearly anchored to this specific topic. Stay concrete and avoid drifting into generic slot design advice.${attachmentContext ? `\n\n**Reference Material Provided:**\n${attachmentContext}` : ''}`,
+        content: `🎯 **PANEL DISCUSSION BRIEF**\n\n**Topic:** ${topic}\n\n**Discussion Type:** ${selectedPreset?.label || 'General'}\n\n**Framing:** ${selectedPreset?.discussionPrompt || ''}\n\n**Scope:** This discussion is planned for approximately ${Math.round(durationSeconds / 60)} minute${Math.round(durationSeconds / 60) !== 1 ? 's' : ''} — use this to calibrate depth and pacing. It's a guide, not a hard limit.\n\n---\n⚠️ Keep every response clearly anchored to this specific topic. Stay concrete and avoid drifting into generic slot design advice.${attachmentContext ? `\n\n**Reference Material Provided:**\n${attachmentContext}` : ''}`,
         timestamp: new Date(),
       };
 
@@ -464,9 +638,10 @@ export default function App() {
       conversationHistory = [openingUserMsg];
     }
 
-    for (let round = 0; round < roundCount; round++) {
-      if (stopRequestedRef.current) break;
-      setCurrentRound(round + 1);
+    while (!stopRequestedRef.current) {
+      const elapsed = Math.floor((Date.now() - discussionStartTime) / 1000);
+      if (elapsed >= durationSeconds) break;
+      setElapsedSeconds(elapsed);
 
       for (const participant of finalOrder) {
         if (stopRequestedRef.current) break;
@@ -588,12 +763,15 @@ export default function App() {
           await new Promise((resolve) => setTimeout(resolve, responseDelayRef.current));
         }
       }
+      // check time after completing a full pass through participants
+      if (Math.floor((Date.now() - discussionStartTime) / 1000) >= durationSeconds) break;
     }
 
+    setElapsedSeconds(Math.min(Math.floor((Date.now() - discussionStartTime) / 1000), durationSeconds));
     conversationHistoryRef.current = conversationHistory;
     setCurrentSpeakerId(null);
     setIsRunning(false);
-  }, [topic, selectedPreset, roundCount, attachmentContext, generateMessage, generateNote]);
+  }, [topic, selectedPreset, durationSeconds, attachmentContext, generateMessage, generateNote]);
 
   const handleStop = useCallback(() => {
     stopRequestedRef.current = true;
@@ -610,18 +788,180 @@ export default function App() {
     setInterjectionQueue([]);
     interjectionRef.current = [];
     conversationHistoryRef.current = [];
-    setCurrentRound(0);
+    setElapsedSeconds(0);
     setNotes([]);
     setInterjectText('');
     setHighlightedMessageId(null);
     setIsPaused(false);
   }, [handleStop]);
 
+  const handleGenerateArtifact = useCallback(async () => {
+    const docType = artifactDocType.trim();
+    if (!docType || conversationHistoryRef.current.length === 0) return;
+
+    const moderator = participantsRef.current.find((p) => p.role === 'moderator' && p.isActive);
+    const model = moderator?.selectedModel ?? participantsRef.current[0]?.selectedModel ?? 'anthropic/claude-3.5-sonnet';
+    const moderatorInstanceId = moderator?.instanceId;
+
+    setShowArtifactForm(false);
+    setArtifactDocType('');
+    setIsGeneratingArtifact(true);
+
+    const msgId = generateId();
+    const pendingMsg: Message = {
+      id: msgId,
+      role: 'assistant',
+      panelMember: moderator?.role ?? 'moderator',
+      instanceId: moderatorInstanceId,
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true,
+      isArtifact: true,
+      artifactTitle: docType,
+    };
+
+    setMessages((prev) => [...prev, pendingMsg]);
+
+    let fullContent = '';
+
+    await generateArtifact(
+      conversationHistoryRef.current,
+      topic,
+      docType,
+      model,
+      (chunk) => {
+        fullContent += chunk;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, content: fullContent } : m))
+        );
+      },
+      () => {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false } : m))
+        );
+        setIsGeneratingArtifact(false);
+      },
+      (err) => {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, content: `⚠️ *Error: ${err}*`, isStreaming: false } : m))
+        );
+        setIsGeneratingArtifact(false);
+      }
+    );
+  }, [artifactDocType, topic, generateArtifact]);
+
+  const handleGenerateAnalysis = useCallback(async () => {
+    if (conversationHistoryRef.current.length === 0) return;
+
+    const moderator = participantsRef.current.find((p) => p.role === 'moderator' && p.isActive);
+    const model = moderator?.selectedModel ?? participantsRef.current[0]?.selectedModel ?? 'anthropic/claude-3.5-sonnet';
+    const moderatorInstanceId = moderator?.instanceId;
+
+    setIsGeneratingAnalysis(true);
+
+    const msgId = generateId();
+    const pendingMsg: Message = {
+      id: msgId,
+      role: 'assistant',
+      panelMember: moderator?.role ?? 'moderator',
+      instanceId: moderatorInstanceId,
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true,
+      isArtifact: true,
+      artifactTitle: 'Conversation Flow Analysis',
+    };
+
+    setMessages((prev) => [...prev, pendingMsg]);
+
+    let fullContent = '';
+
+    await generateAnalysis(
+      conversationHistoryRef.current,
+      topic,
+      durationSeconds,
+      model,
+      (chunk) => {
+        fullContent += chunk;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, content: fullContent } : m))
+        );
+      },
+      () => {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false } : m))
+        );
+        setIsGeneratingAnalysis(false);
+      },
+      (err) => {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, content: `⚠️ *Error: ${err}*`, isStreaming: false } : m))
+        );
+        setIsGeneratingAnalysis(false);
+      }
+    );
+  }, [topic, durationSeconds, generateAnalysis]);
+
+  const handleGenerateRecap = useCallback(async () => {
+    if (conversationHistoryRef.current.length === 0) return;
+
+    const moderator = participantsRef.current.find((p) => p.role === 'moderator' && p.isActive);
+    const model = moderator?.selectedModel ?? participantsRef.current[0]?.selectedModel ?? 'anthropic/claude-3.5-sonnet';
+    const moderatorInstanceId = moderator?.instanceId;
+
+    setIsGeneratingRecap(true);
+
+    const msgId = generateId();
+    const pendingMsg: Message = {
+      id: msgId,
+      role: 'assistant',
+      panelMember: moderator?.role ?? 'moderator',
+      instanceId: moderatorInstanceId,
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true,
+      isArtifact: true,
+      artifactTitle: 'Discussion Recap',
+    };
+
+    setMessages((prev) => [...prev, pendingMsg]);
+    let fullContent = '';
+
+    await generateRecap(
+      conversationHistoryRef.current,
+      topic,
+      roundCount,
+      model,
+      (chunk) => {
+        fullContent += chunk;
+        setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent } : m)));
+      },
+      () => {
+        setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false } : m)));
+        setIsGeneratingRecap(false);
+      },
+      (err) => {
+        setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: `⚠️ *Error: ${err}*`, isStreaming: false } : m)));
+        setIsGeneratingRecap(false);
+      }
+    );
+  }, [topic, durationSeconds, generateRecap]);
+
   const activeCount = participants.filter((p) => p.isActive).length;
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-950 text-white">
-      {showApiModal && <ApiKeyModal onSave={handleSaveApiKey} existingKey={apiKey} />}
+      {showApiModal && (
+        <ApiKeyModal
+          onSave={handleSaveApiKey}
+          existingKey={apiKey}
+          roleVisibility={roleVisibility}
+          onToggleRoleVisibility={handleToggleRoleVisibility}
+          customTraits={customTraits}
+          onAddTrait={handleAddTrait}
+          onRemoveTrait={handleRemoveTrait}
+        />
+      )}
 
       <div className="flex w-64 flex-shrink-0 flex-col border-r border-gray-700/50 bg-gray-950">
         <div className="flex flex-shrink-0 flex-col" style={{ maxHeight: '40%' }}>
@@ -632,7 +972,7 @@ export default function App() {
                 <div className="flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
                   <span className="text-[10px] font-medium text-green-400">
-                    R{currentRound}/{roundCount}
+                    {Math.floor(elapsedSeconds / 60)}:{String(elapsedSeconds % 60).padStart(2, '0')} / {Math.floor(durationSeconds / 60)}:{String(durationSeconds % 60).padStart(2, '0')}
                   </span>
                 </div>
               ) : (
@@ -683,10 +1023,10 @@ export default function App() {
 
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-sm font-bold text-white">
-              {topic || 'Casino Slot Design Panel - SlotMind AI'}
+              {topic || APP_TITLE}
             </h2>
             <p className="text-xs text-gray-500">
-              {selectedPreset?.label} · {roundCount} round{roundCount !== 1 ? 's' : ''} · {activeCount} active
+              {selectedPreset?.label} · {Math.round(durationSeconds / 60)}min · {activeCount} active
               {noteTakerConfig.enabled ? ' · Notes on' : ''}
             </p>
           </div>
@@ -708,6 +1048,40 @@ export default function App() {
           })()}
 
           <button
+            onClick={() => setShowArtifactForm((v) => !v)}
+            disabled={messages.length === 0 || isGeneratingArtifact}
+            title="Generate a Markdown document from this discussion"
+            className={`group flex h-7 items-center gap-1.5 flex-shrink-0 rounded-lg border px-2 transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+              showArtifactForm
+                ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300'
+                : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-emerald-600/50 hover:bg-gray-700 hover:text-emerald-300'
+            }`}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            <span className="text-[10px] font-medium">Doc</span>
+          </button>
+
+          <button
+            onClick={handleGenerateAnalysis}
+            disabled={messages.length === 0 || isGeneratingAnalysis}
+            title="Analyse the conversation flow — turning points, revelations, disagreements, alignments"
+            className="group flex h-7 items-center gap-1.5 flex-shrink-0 rounded-lg border border-gray-700 bg-gray-800 px-2 text-gray-400 transition-all hover:border-violet-600/50 hover:bg-gray-700 hover:text-violet-300 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <GitBranch className="h-3.5 w-3.5" />
+            <span className="text-[10px] font-medium">{isGeneratingAnalysis ? 'Analysing…' : 'Analysis'}</span>
+          </button>
+
+          <button
+            onClick={handleGenerateRecap}
+            disabled={messages.length === 0 || isGeneratingRecap}
+            title="Macro recap — what was covered, what was decided, what's still open"
+            className="group flex h-7 items-center gap-1.5 flex-shrink-0 rounded-lg border border-gray-700 bg-gray-800 px-2 text-gray-400 transition-all hover:border-sky-600/50 hover:bg-gray-700 hover:text-sky-300 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <LayoutList className="h-3.5 w-3.5" />
+            <span className="text-[10px] font-medium">{isGeneratingRecap ? 'Recapping…' : 'Recap'}</span>
+          </button>
+
+          <button
             onClick={() => setShowApiModal(true)}
             title="System settings"
             className="group flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 transition-all hover:border-gray-500 hover:bg-gray-700"
@@ -716,13 +1090,45 @@ export default function App() {
           </button>
         </div>
 
+        {showArtifactForm && (
+          <div className="flex items-center gap-2 border-b border-emerald-700/40 bg-emerald-950/30 px-4 py-2.5">
+            <FileText className="h-4 w-4 flex-shrink-0 text-emerald-400" />
+            <input
+              autoFocus
+              value={artifactDocType}
+              onChange={(e) => setArtifactDocType(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleGenerateArtifact();
+                if (e.key === 'Escape') setShowArtifactForm(false);
+              }}
+              placeholder="Document type, e.g. Game Design Document, Executive Summary, Feature Spec…"
+              className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none"
+            />
+            <button
+              onClick={handleGenerateArtifact}
+              disabled={!artifactDocType.trim()}
+              className="flex-shrink-0 rounded-lg border border-emerald-600/50 bg-emerald-700/30 px-3 py-1 text-xs font-medium text-emerald-300 transition-all hover:bg-emerald-700/50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Generate
+            </button>
+            <button
+              onClick={() => setShowArtifactForm(false)}
+              className="flex-shrink-0 text-gray-500 hover:text-gray-300"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-4">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center select-none">
               <div className="mb-6 text-7xl animate-pulse">🎰</div>
-              <h3 className="mb-3 text-2xl font-bold text-white">Welcome to SlotMind AI</h3>
+              <h3 className="mb-3 text-2xl font-bold text-white">Welcome to {APP_NAME}</h3>
               <p className="mb-6 max-w-md text-sm leading-relaxed text-gray-400">
-                A spawnable panel of AI experts collaborates to design, critique, and innovate casino slot concepts.
+                Assemble a panel of AI experts, set a brief, and let the discussion run. Steer it with interjections, 
+                take live notes, and distill the results into Markdown documents and GDDs.
+                <br /><br />
                 Build your team on the right, set a topic and discussion type, then hit{' '}
                 <strong className="text-purple-400">Start Discussion</strong>.
               </p>
@@ -773,7 +1179,9 @@ export default function App() {
                 ? `✋ ${interjectionQueue.length} queued`
                 : isRunning
                   ? '✋ Live interjection'
-                  : '✋ Start a discussion to interject'}
+                  : messages.length > 0
+                    ? '✋ Solicit response'
+                    : '✋ Start a discussion to interject'}
             </div>
               <div className="flex flex-1 items-center gap-2 rounded-2xl border border-amber-500/30 bg-gray-950/90 px-3 py-2 shadow-[0_0_0_1px_rgba(245,158,11,0.05)]">
                <button
@@ -794,17 +1202,23 @@ export default function App() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    handleSubmitInterjection();
+                    isRunning ? handleSubmitInterjection() : handleSolicitResponse();
                   }
                 }}
-                 placeholder={isRunning ? 'Type an interjection for the next turn...' : 'Interjections unlock during a live discussion'}
-                 disabled={!apiKey || !isRunning}
+                 placeholder={
+                   isRunning
+                     ? 'Type an interjection for the next turn...'
+                     : messages.length > 0
+                       ? highlightedMessageId ? 'Ask the highlighted participant...' : 'Solicit a response from a participant...'
+                       : 'Interjections unlock during a live discussion'
+                 }
+                 disabled={!apiKey || messages.length === 0}
                  className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none disabled:cursor-not-allowed"
                />
               <button
-                onClick={handleSubmitInterjection}
-                disabled={!apiKey || !isRunning || !interjectText.trim()}
-                title="Send interjection"
+                onClick={isRunning ? handleSubmitInterjection : handleSolicitResponse}
+                disabled={!apiKey || messages.length === 0 || !interjectText.trim()}
+                title={isRunning ? 'Send interjection' : 'Solicit response from highlighted participant'}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-600 text-white transition-all hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Send className="h-4 w-4" />
@@ -817,7 +1231,7 @@ export default function App() {
                   <div className="mb-1 flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1 font-medium text-cyan-300">
                       <Hand className="h-3.5 w-3.5" />
-                      Interjecting about selected panel response
+                      {isRunning ? 'Interjecting about selected panel response' : 'Soliciting response about selected message'}
                     </span>
                     <button
                       onClick={() => setHighlightedMessageId(null)}
@@ -853,8 +1267,8 @@ export default function App() {
             apiKey={apiKey}
             topic={topic}
             onTopicChange={setTopic}
-            roundCount={roundCount}
-            onRoundCountChange={setRoundCount}
+            durationSeconds={durationSeconds}
+            onDurationChange={setDurationSeconds}
             responseDelay={responseDelay}
             onResponseDelayChange={setResponseDelay}
             selectedModelPreset={selectedModelPreset}
@@ -881,7 +1295,9 @@ export default function App() {
             roleVisibility={roleVisibility}
             savedPanelPresets={savedPanelPresets}
             onSavePanelPreset={handleSavePanelPreset}
+            onUpdatePanelPreset={handleUpdatePanelPreset}
             onDeletePanelPreset={handleDeletePanelPreset}
+            customTraits={customTraits}
           />
         </div>
       </div>

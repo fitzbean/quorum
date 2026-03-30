@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
 import { PARTICIPANT_PRESETS } from '../constants';
-import { PERSONALITY_TRAITS } from '../types';
 import type { ActiveParticipant, ParticipantPreset, PanelPreset, ModelOption, ModelTier, PersonalityTrait, RoleVisibility } from '../types';
 import { formatModelPricePerThousand } from '../utils/modelCatalog';
 
@@ -21,7 +20,9 @@ interface ParticipantRosterProps {
   roleVisibility: RoleVisibility;
   savedPanelPresets: PanelPreset[];
   onSavePanelPreset: (label: string) => void;
+  onUpdatePanelPreset: (presetId: string) => void;
   onDeletePanelPreset: (presetId: string) => void;
+  customTraits: string[];
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -59,7 +60,9 @@ export function ParticipantRoster({
   roleVisibility,
   savedPanelPresets,
   onSavePanelPreset,
+  onUpdatePanelPreset,
   onDeletePanelPreset,
+  customTraits,
 }: ParticipantRosterProps) {
   const [showSpawner, setShowSpawner] = useState(false);
   const [showPanelPresets, setShowPanelPresets] = useState(false);
@@ -209,6 +212,15 @@ export function ParticipantRoster({
                               <span className="text-[9px] bg-purple-500/40 text-purple-200 px-1.5 py-0.5 rounded-full flex-shrink-0">✓ Active</span>
                             )}
                           </button>
+                          {isSelected && (
+                            <button
+                              onClick={() => onUpdatePanelPreset(preset.id)}
+                              title="Update preset with current panel"
+                              className="px-1.5 h-5 rounded flex items-center justify-center text-[9px] font-medium text-amber-400 hover:text-amber-200 hover:bg-amber-900/50 border border-amber-700/40 transition-all flex-shrink-0"
+                            >
+                              ↑ Update
+                            </button>
+                          )}
                           <button
                             onClick={() => onDeletePanelPreset(preset.id)}
                             title="Delete preset"
@@ -452,7 +464,7 @@ export function ParticipantRoster({
                       </select>
                       <p className="text-[10px] text-gray-500 mb-1 mt-3 uppercase tracking-wider">Personality traits</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {PERSONALITY_TRAITS.map((trait) => {
+                        {customTraits.map((trait) => {
                           const selected = p.personalityTraits.includes(trait);
                           return (
                             <button

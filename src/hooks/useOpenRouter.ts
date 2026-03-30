@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import type { Message, ActiveParticipant, NoteDetailLevel } from '../types';
+import { APP_NAME } from '../appConfig';
 import { NOTE_DETAIL_LEVELS } from '../constants';
 
 interface UseOpenRouterOptions {
@@ -210,7 +211,7 @@ export function useOpenRouter({ apiKey, participants, systemInstructions }: UseO
             max_tokens: 400,
             temperature: 0.8,
           },
-          sharedHeaders('SlotMind AI Panel'),
+          sharedHeaders(APP_NAME),
           controller.signal,
           onChunk
         );
@@ -290,7 +291,7 @@ export function useOpenRouter({ apiKey, participants, systemInstructions }: UseO
             max_tokens: 300,
             temperature: 0.2,
           },
-          sharedHeaders('SlotMind AI Panel - Notes'),
+          sharedHeaders(`${APP_NAME} - Notes`),
           controller.signal,
           onChunk
         );
@@ -312,5 +313,252 @@ export function useOpenRouter({ apiKey, participants, systemInstructions }: UseO
     [sharedHeaders]
   );
 
-  return { generateMessage, generateNote, isLoading, stopGeneration };
+  const generateArtifact = useCallback(
+    async (
+      conversationHistory: Message[],
+      topic: string,
+      documentType: string,
+      model: string,
+      onChunk: (chunk: string) => void,
+      onDone: () => void,
+      onError: (err: string) => void
+    ) => {
+      const currentKey = apiKeyRef.current;
+      if (!currentKey) {
+        onError('No API key provided.');
+        return;
+      }
+
+      const controller = new AbortController();
+      mainAbortRef.current = controller;
+
+      const systemPrompt =
+        'You are producing a formal Markdown document that synthesizes a panel discussion.\n\n' +
+        'Your task: write a comprehensive, well-structured document based on the discussion transcript.\n\n' +
+        'Rules:\n' +
+        '- Use proper Markdown: # for title, ## for sections, ### for subsections, bullet lists, tables where useful\n' +
+        '- Be thorough and professional — this is a deliverable document, not a chat message\n' +
+        '- Capture key insights, debates, decisions, and recommendations from the discussion\n' +
+        '- Attribute important ideas to participants where relevant (e.g. "The Artist noted that...")\n' +
+        '- Synthesize and organize ideas into a coherent document — do not just transcribe the chat\n' +
+        '- The document must be self-contained and readable without the raw discussion context\n' +
+        '- Start directly with the document title — no preamble like "Here is your document:"';
+
+      const historyText = conversationHistory
+        .filter((m) => m.role !== 'system' && !m.isArtifact)
+        .map((m) => {
+          if (m.role === 'user') return `[Facilitator]: ${m.content}`;
+          const speaker = participantsRef.current.find((p) => p.instanceId === m.instanceId);
+          const label = speaker ? `[${speaker.emoji} ${speaker.label}]` : '[Panel]';
+          return `${label}: ${m.content}`;
+        })
+        .join('\n\n');
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content:
+            `DISCUSSION TOPIC: ${topic}\n\n` +
+            `DOCUMENT TYPE REQUESTED: ${documentType}\n\n` +
+            `DISCUSSION TRANSCRIPT:\n\n${historyText}\n\n` +
+            `---\n\nNow write the ${documentType}:`,
+        },
+      ];
+
+      try {
+        await streamSSE(
+          'https://openrouter.ai/api/v1/chat/completions',
+          {
+            model,
+            messages,
+            stream: true,
+            max_tokens: 4000,
+            temperature: 0.4,
+          },
+          sharedHeaders(`${APP_NAME} - Artifact`),
+          controller.signal,
+          onChunk
+        );
+        onDone();
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          onDone();
+        } else {
+          onError(err instanceof Error ? err.message : 'Unknown error generating artifact');
+        }
+      } finally {
+        if (mainAbortRef.current === controller) {
+          mainAbortRef.current = null;
+        }
+      }
+    },
+    [sharedHeaders]
+  );
+
+  const generateAnalysis = useCallback(
+    async (
+      conversationHistory: Message[],
+      topic: string,
+      durationSeconds: number,
+      model: string,
+      onChunk: (chunk: string) => void,
+      onDone: () => void,
+      onError: (err: string) => void
+    ) => {
+      const currentKey = apiKeyRef.current;
+      if (!currentKey) {
+        onError('No API key provided.');
+        return;
+      }
+
+      const controller = new AbortController();
+      mainAbortRef.current = controller;
+
+      const systemPrompt =
+        'You are a conversation analyst. Your task is to produce a structured analysis of how a panel discussion *unfolded* — not what was concluded, but how the conversation moved.\n\n' +
+        'Focus on:\n' +
+        '- The arc and flow of the conversation (how it progressed, evolved, shifted)\n' +
+        '- Turning points: moments where the direction, tone, or framing changed significantly\n' +
+        '- Revelations: insights or realisations that emerged mid-discussion and changed things\n' +
+        '- Disagreements: where participants clashed, what the nature of the disagreement was, and whether/how it resolved\n' +
+        '- Alignments: where participants converged, built on each other, or reached consensus\n' +
+        '- Power dynamics and participation patterns: who drove the discussion, who deferred, who challenged\n' +
+        '- Unresolved tensions or open threads left hanging\n\n' +
+        'Rules:\n' +
+        '- Use proper Markdown: # for title, ## for sections\n' +
+        '- Be analytical and specific — quote or closely paraphrase moments from the transcript to support observations\n' +
+        '- Do NOT just summarise what was said. Analyse *how* the conversation happened\n' +
+        '- Attribute dynamics to specific participants by name\n' +
+        '- End with a ## Recommendation section: assess whether the discussion reached sufficient depth given the number of rounds completed, or whether further rounds would meaningfully advance it and why\n' +
+        '- Start directly with the title — no preamble';
+
+      const historyText = conversationHistory
+        .filter((m) => m.role !== 'system' && !m.isArtifact)
+        .map((m) => {
+          if (m.role === 'user') return `[Facilitator]: ${m.content}`;
+          const speaker = participantsRef.current.find((p) => p.instanceId === m.instanceId);
+          const label = speaker ? `[${speaker.emoji} ${speaker.label}]` : '[Panel]';
+          return `${label}: ${m.content}`;
+        })
+        .join('\n\n');
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content:
+            `DISCUSSION TOPIC: ${topic}\n\n` +
+            `DISCUSSION DURATION: ${Math.round(durationSeconds / 60)} minute${Math.round(durationSeconds / 60) !== 1 ? 's' : ''}\n\n` +
+            `DISCUSSION TRANSCRIPT:\n\n${historyText}\n\n` +
+            `---\n\nNow write the Conversation Flow Analysis:`,
+        },
+      ];
+
+      try {
+        await streamSSE(
+          'https://openrouter.ai/api/v1/chat/completions',
+          {
+            model,
+            messages,
+            stream: true,
+            max_tokens: 4000,
+            temperature: 0.4,
+          },
+          sharedHeaders(`${APP_NAME} - Analysis`),
+          controller.signal,
+          onChunk
+        );
+        onDone();
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          onDone();
+        } else {
+          onError(err instanceof Error ? err.message : 'Unknown error generating analysis');
+        }
+      } finally {
+        if (mainAbortRef.current === controller) {
+          mainAbortRef.current = null;
+        }
+      }
+    },
+    [sharedHeaders]
+  );
+
+  const generateRecap = useCallback(
+    async (
+      conversationHistory: Message[],
+      topic: string,
+      durationSeconds: number,
+      model: string,
+      onChunk: (chunk: string) => void,
+      onDone: () => void,
+      onError: (err: string) => void
+    ) => {
+      const currentKey = apiKeyRef.current;
+      if (!currentKey) { onError('No API key provided.'); return; }
+
+      const controller = new AbortController();
+      mainAbortRef.current = controller;
+
+      const systemPrompt =
+        'You are producing a macro-level recap of a panel discussion. Focus entirely on substance and outcomes — not on who said what or how the conversation unfolded.\n\n' +
+        'Cover:\n' +
+        '- What ground was covered: the full scope of topics and sub-topics addressed\n' +
+        '- What was established or decided: conclusions, positions, frameworks, or approaches that emerged with reasonable consensus\n' +
+        '- What remains open: unresolved questions, deferred decisions, or areas that need more work\n' +
+        '- Progress against the original brief: how much of the stated goal was actually addressed, and what is still outstanding\n' +
+        '- A clear-eyed overall assessment: how far did the discussion advance the brief?\n\n' +
+        'Rules:\n' +
+        '- Use proper Markdown: # for title, ## for sections\n' +
+        '- Be direct and concise — this is a status report, not an essay\n' +
+        '- Do NOT describe participant behaviour, dynamics, or who said what\n' +
+        '- Do NOT just restate the transcript — synthesise and assess\n' +
+        '- Start directly with the title — no preamble';
+
+      const historyText = conversationHistory
+        .filter((m) => m.role !== 'system' && !m.isArtifact)
+        .map((m) => {
+          if (m.role === 'user') return `[Facilitator]: ${m.content}`;
+          const speaker = participantsRef.current.find((p) => p.instanceId === m.instanceId);
+          const label = speaker ? `[${speaker.emoji} ${speaker.label}]` : '[Panel]';
+          return `${label}: ${m.content}`;
+        })
+        .join('\n\n');
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content:
+            `ORIGINAL BRIEF: ${topic}\n\n` +
+            `DISCUSSION DURATION: ${Math.round(durationSeconds / 60)} minute${Math.round(durationSeconds / 60) !== 1 ? 's' : ''}\n\n` +
+            `DISCUSSION TRANSCRIPT:\n\n${historyText}\n\n` +
+            `---\n\nNow write the Discussion Recap:`,
+        },
+      ];
+
+      try {
+        await streamSSE(
+          'https://openrouter.ai/api/v1/chat/completions',
+          { model, messages, stream: true, max_tokens: 3000, temperature: 0.3 },
+          sharedHeaders(`${APP_NAME} - Recap`),
+          controller.signal,
+          onChunk
+        );
+        onDone();
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          onDone();
+        } else {
+          onError(err instanceof Error ? err.message : 'Unknown error generating recap');
+        }
+      } finally {
+        if (mainAbortRef.current === controller) mainAbortRef.current = null;
+      }
+    },
+    [sharedHeaders]
+  );
+
+  return { generateMessage, generateNote, generateArtifact, generateAnalysis, generateRecap, isLoading, stopGeneration };
 }
