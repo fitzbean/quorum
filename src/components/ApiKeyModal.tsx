@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Key, ExternalLink, Eye, EyeOff, X, Settings, Users, Sliders } from 'lucide-react';
+import { Key, ExternalLink, Eye, EyeOff, X, Settings, Users, Sliders, Dices } from 'lucide-react';
 import { PERSONALITY_TRAITS } from '../types';
 import { APP_NAME, APP_BYLINE } from '../appConfig';
 import { PARTICIPANT_PRESETS } from '../constants';
@@ -75,7 +75,7 @@ export function ApiKeyModal({ onSave, existingKey, roleVisibility, onToggleRoleV
         <div className="flex items-center gap-3 px-8 pt-8 pb-5 flex-shrink-0">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-amber-500 flex items-center justify-center">
             {isFirstTime ? (
-              <span className="text-2xl">🎰</span>
+              <Dices className="w-6 h-6 text-white" />
             ) : (
               <Settings className="w-6 h-6 text-white" />
             )}

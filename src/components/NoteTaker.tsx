@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { ChevronDown, Trash2, Copy, Check, NotebookPen } from 'lucide-react';
+import { ChevronDown, Trash2, Copy, Check, NotebookPen, Bot } from 'lucide-react';
 import type { NoteEntry, NoteDetailLevel, NoteTakerConfig, ModelOption, ModelTier } from '../types';
 import { NOTE_DETAIL_LEVELS } from '../constants';
 import { MODEL_TIER_ORDER } from '../utils/modelCatalog';
@@ -13,10 +13,10 @@ interface NoteTakerProps {
 }
 
 const TIER_LABELS: Record<ModelTier, string> = {
-  free: '\u{1F193} Free',
-  balanced: '\u2696\uFE0F Balanced',
-  'last-generation': '\u23EE Last Generation',
-  'bleeding-edge': '\u{1F52C} Bleeding Edge',
+  free: 'Free',
+  balanced: 'Balanced',
+  'last-generation': 'Last Generation',
+  'bleeding-edge': 'Bleeding Edge',
 };
 
 export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models }: NoteTakerProps) {
@@ -137,8 +137,8 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models 
             onClick={() => setModelOpen((v) => !v)}
             className="w-full flex items-center justify-between gap-1 text-[10px] bg-gray-800/80 border border-gray-700/50 rounded px-2 py-1 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-all"
           >
-            <span className="truncate">
-              {'\u{1F916}'} {currentModel?.name ?? config.selectedModel.split('/')[1]?.split(':')[0] ?? config.selectedModel}
+            <span className="truncate flex items-center gap-1">
+              <Bot className="w-3 h-3 flex-shrink-0" /> {currentModel?.name ?? config.selectedModel.split('/')[1]?.split(':')[0] ?? config.selectedModel}
             </span>
             <ChevronDown className={`w-2.5 h-2.5 flex-shrink-0 transition-transform ${modelOpen ? 'rotate-180' : ''}`} />
           </button>
