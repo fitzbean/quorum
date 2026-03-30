@@ -77,12 +77,7 @@ export function ParticipantRoster({
   const filteredPresets = (spawnerCategory === 'all'
     ? PARTICIPANT_PRESETS
     : PARTICIPANT_PRESETS.filter((p) => p.category === spawnerCategory)
-  ).slice().sort((a, b) => {
-    const aEnabled = roleVisibility[a.role] !== false;
-    const bEnabled = roleVisibility[b.role] !== false;
-    if (aEnabled !== bEnabled) return aEnabled ? -1 : 1;
-    return 0;
-  });
+  ).filter((p) => roleVisibility[p.role] !== false);
 
   const selectedModelTier = (selectedModelId: string): ModelTier | null => {
     const match = models.find((model) => model.id === selectedModelId);
@@ -276,32 +271,23 @@ export function ParticipantRoster({
             <div className="flex flex-col gap-1">
               {filteredPresets.map((preset) => {
                 const count = participants.filter(p => p.role === preset.role).length;
-                const isDisabled = roleVisibility[preset.role] === false;
                 return (
                   <button
                     key={preset.role}
-                    onClick={() => !isDisabled && onAdd(preset)}
-                    disabled={isDisabled}
-                    className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all border ${
-                      isDisabled
-                        ? 'opacity-35 border-gray-700/40 bg-gray-800/30 cursor-not-allowed grayscale'
-                        : `${preset.borderColor} ${preset.bgColor} hover:opacity-90`
-                    }`}
+                    onClick={() => onAdd(preset)}
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all border ${preset.borderColor} ${preset.bgColor} hover:opacity-90`}
                   >
                     <span className="text-lg flex-shrink-0">{preset.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className={`text-xs font-semibold ${isDisabled ? 'text-gray-500' : preset.color}`}>{preset.label}</span>
-                        {isDisabled && (
-                          <span className="text-[9px] bg-gray-700/50 px-1.5 rounded-full text-gray-500">disabled</span>
-                        )}
-                        {!isDisabled && count > 0 && (
+                        <span className={`text-xs font-semibold ${preset.color}`}>{preset.label}</span>
+                        {count > 0 && (
                           <span className="text-[9px] bg-white/10 px-1.5 rounded-full text-gray-300">×{count}</span>
                         )}
                       </div>
                       <p className="text-[10px] text-gray-500 leading-tight truncate">{preset.description}</p>
                     </div>
-                    {!isDisabled && <Plus className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />}
+                    <Plus className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
                   </button>
                 );
               })}
