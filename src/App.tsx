@@ -1,12 +1,13 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, type PointerEvent as ReactPointerEvent } from 'react';
 import { APP_NAME, APP_TITLE } from './appConfig';
-import { FileText, GitBranch, LayoutList, Hand, Pause, Play, Send, Settings, X } from 'lucide-react';
+import { CircleHelp, FileText, GitBranch, LayoutList, Hand, MessagesSquare, Pause, Play, Send, Settings, X } from 'lucide-react';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { ChatMessage } from './components/ChatMessage';
 import { ContextPanel } from './components/ContextPanel';
 import { PanelSidebar } from './components/PanelSidebar';
 import { ParticipantRoster } from './components/ParticipantRoster';
 import { NoteTaker } from './components/NoteTaker';
+import { TutorialModal } from './components/TutorialModal';
 import { useOpenRouter } from './hooks/useOpenRouter';
 import {
   PARTICIPANT_PRESETS,
@@ -40,8 +41,13 @@ import type {
 } from './types';
 
 const DEFAULT_PERSONALITY_TRAITS: PersonalityTrait[] = ['analytical'];
+const RIGHT_PANEL_TOP_SECTION_DEFAULT = 58;
+const RIGHT_PANEL_TOP_SECTION_MIN = 28;
+const RIGHT_PANEL_TOP_SECTION_MAX = 78;
 
 const STORAGE_KEY = 'slotmind_api_key';
+const TUTORIAL_STORAGE_KEY = 'quorum_tutorial_seen';
+const NOTE_DETAIL_LEVEL_STORAGE_KEY = 'quorum_note_detail_level';
 
 function loadSavedTraits(): Record<string, PersonalityTrait[]> {
   try {
@@ -110,6 +116,17 @@ function getFallbackModelId(models: ModelOption[], preferredTier?: ModelTier): s
   return models[0]?.id ?? null;
 }
 
+function loadSavedNoteDetailLevel(): NoteTakerConfig['detailLevel'] {
+  try {
+    const raw = localStorage.getItem(NOTE_DETAIL_LEVEL_STORAGE_KEY);
+    return raw === 'brief' || raw === 'standard' || raw === 'detailed' || raw === 'verbatim'
+      ? raw
+      : 'standard';
+  } catch {
+    return 'standard';
+  }
+}
+
 export default function App() {
   const [apiKey, setApiKey] = useState<string>(() => {
     const stored = localStorage.getItem(STORAGE_KEY) || '';
@@ -129,7 +146,7 @@ export default function App() {
   const [notes, setNotes] = useState<NoteEntry[]>([]);
   const [noteTakerConfig, setNoteTakerConfig] = useState<NoteTakerConfig>({
     selectedModel: NOTE_TAKER_DEFAULT_MODEL,
-    detailLevel: 'standard',
+    detailLevel: loadSavedNoteDetailLevel(),
     enabled: true,
   });
   const [responseDelay, setResponseDelay] = useState(1500);
@@ -151,6 +168,7 @@ export default function App() {
       return raw ? JSON.parse(raw) : [...PERSONALITY_TRAITS];
     } catch { return [...PERSONALITY_TRAITS]; }
   });
+  const [rightPanelTopSectionPercent, setRightPanelTopSectionPercent] = useState(RIGHT_PANEL_TOP_SECTION_DEFAULT);
   const [isPaused, setIsPaused] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [showArtifactForm, setShowArtifactForm] = useState(false);
@@ -158,6 +176,7 @@ export default function App() {
   const [isGeneratingArtifact, setIsGeneratingArtifact] = useState(false);
   const [isGeneratingAnalysis, setIsGeneratingAnalysis] = useState(false);
   const [isGeneratingRecap, setIsGeneratingRecap] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem(TUTORIAL_STORAGE_KEY));
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -171,6 +190,8 @@ export default function App() {
   const noteTakerConfigRef = useRef(noteTakerConfig);
   const participantsRef = useRef(participants);
   const responseDelayRef = useRef(responseDelay);
+  const rightSidebarRef = useRef<HTMLDivElement>(null);
+  const isResizingRightPanelRef = useRef(false);
 
   useEffect(() => {
     noteTakerConfigRef.current = noteTakerConfig;
@@ -206,6 +227,42 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(TRAITS_LIST_STORAGE_KEY, JSON.stringify(customTraits));
   }, [customTraits]);
+
+  useEffect(() => {
+    localStorage.setItem(NOTE_DETAIL_LEVEL_STORAGE_KEY, noteTakerConfig.detailLevel);
+  }, [noteTakerConfig.detailLevel]);
+
+  useEffect(() => {
+    if (showTutorial) return;
+    localStorage.setItem(TUTORIAL_STORAGE_KEY, 'true');
+  }, [showTutorial]);
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isResizingRightPanelRef.current || !rightSidebarRef.current) return;
+
+      const bounds = rightSidebarRef.current.getBoundingClientRect();
+      if (bounds.height === 0) return;
+
+      const rawPercent = ((event.clientY - bounds.top) / bounds.height) * 100;
+      const clampedPercent = Math.min(RIGHT_PANEL_TOP_SECTION_MAX, Math.max(RIGHT_PANEL_TOP_SECTION_MIN, rawPercent));
+      setRightPanelTopSectionPercent(clampedPercent);
+    };
+
+    const handlePointerUp = () => {
+      isResizingRightPanelRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -848,6 +905,21 @@ export default function App() {
     setIsPaused(false);
   }, [handleStop]);
 
+  const handleCloseTutorial = useCallback(() => {
+    setShowTutorial(false);
+  }, []);
+
+  const handleRestartTutorial = useCallback(() => {
+    setShowTutorial(true);
+  }, []);
+
+  const handleRightPanelResizeStart = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    isResizingRightPanelRef.current = true;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
   const handleGenerateArtifact = useCallback(async () => {
     const docType = artifactDocType.trim();
     if (!docType || conversationHistoryRef.current.length === 0) return;
@@ -1009,6 +1081,11 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-950 text-white">
+      <TutorialModal
+        isOpen={showTutorial}
+        onClose={handleCloseTutorial}
+      />
+
       {showApiModal && (
         <ApiKeyModal
           onSave={handleSaveApiKey}
@@ -1021,7 +1098,7 @@ export default function App() {
         />
       )}
 
-      <div className="flex w-64 flex-shrink-0 flex-col border-r border-gray-700/50 bg-gray-950">
+      <div data-tutorial="input-panel" className="flex w-64 flex-shrink-0 flex-col border-r border-gray-700/50 bg-gray-950">
         <div className="flex flex-shrink-0 flex-col" style={{ maxHeight: '40%' }}>
           <div className="border-b border-gray-700/50 bg-gray-900/80 px-3 py-2">
             <div className="flex items-center justify-between">
@@ -1062,27 +1139,12 @@ export default function App() {
 
       <div className="flex min-w-0 flex-1 flex-col bg-gray-950">
         <div className="flex items-center gap-3 border-b border-gray-700/50 bg-gray-900/80 px-4 py-2.5">
-          <div className="flex flex-shrink-0 -space-x-1">
-            {participants.slice(0, 8).map((participant) => (
-              <span
-                key={participant.instanceId}
-                title={participant.label}
-                className={`cursor-default text-lg transition-transform hover:-translate-y-1 hover:scale-125 ${
-                  currentSpeakerId === participant.instanceId ? '-translate-y-1 scale-125' : ''
-                } ${!participant.isActive ? 'opacity-30 grayscale' : ''}`}
-              >
-                {participant.emoji}
-              </span>
-            ))}
-            {participants.length > 8 && (
-              <span className="self-center pl-2 text-xs text-gray-500">+{participants.length - 8}</span>
-            )}
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gray-800 text-gray-400">
+            <MessagesSquare size={16} />
           </div>
 
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-sm font-bold text-white">
-              {topic || APP_TITLE}
-            </h2>
+            <h2 className="truncate text-sm font-semibold text-gray-200">{APP_TITLE}</h2>
             <p className="text-xs text-gray-500">
               {selectedPreset?.label} · {Math.round(durationSeconds / 60)}min · {activeCount} active
               {noteTakerConfig.enabled ? ' · Notes on' : ''}
@@ -1104,6 +1166,14 @@ export default function App() {
               </div>
             ) : null;
           })()}
+
+          <button
+            onClick={handleRestartTutorial}
+            title="Restart tutorial"
+            className="group flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 transition-all hover:border-purple-500/60 hover:bg-gray-700"
+          >
+            <CircleHelp className="h-3.5 w-3.5 text-gray-400 transition-all group-hover:text-purple-300" />
+          </button>
 
           <button
             onClick={() => setShowArtifactForm((v) => !v)}
@@ -1178,7 +1248,7 @@ export default function App() {
           </div>
         )}
 
-        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-4">
+        <div ref={messagesContainerRef} data-tutorial="conversation-feed" className="flex-1 overflow-y-auto px-6 py-4">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center select-none">
               <div className="mb-6 text-7xl animate-pulse">🎰</div>
@@ -1230,7 +1300,7 @@ export default function App() {
           )}
         </div>
 
-        <div className="border-t border-gray-700/50 bg-gray-900/85 px-4 py-3">
+        <div data-tutorial="interjection-bar" className="border-t border-gray-700/50 bg-gray-900/85 px-4 py-3">
           <div className="mx-auto flex w-full max-w-3xl items-center gap-3">
             <div className="hidden shrink-0 text-[11px] text-amber-400 sm:block">
               {interjectionQueue.length > 0
@@ -1318,8 +1388,8 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex w-72 flex-shrink-0 flex-col border-l border-gray-700/50">
-        <div className="flex-shrink-0" style={{ maxHeight: '58%', overflowY: 'auto' }}>
+      <div ref={rightSidebarRef} className="flex w-72 flex-shrink-0 flex-col border-l border-gray-700/50">
+        <div data-tutorial="discussion-controls" className="flex-shrink-0" style={{ height: `${rightPanelTopSectionPercent}%`, overflowY: 'auto' }}>
           <PanelSidebar
             participants={participants}
             onPresetApply={handlePresetApply}
@@ -1345,7 +1415,15 @@ export default function App() {
           />
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col border-t border-gray-700/50">
+        <div
+          onPointerDown={handleRightPanelResizeStart}
+          className="group flex h-2 flex-shrink-0 cursor-row-resize items-center justify-center bg-gray-950/60 transition-colors hover:bg-gray-900"
+          title="Drag to resize panel"
+        >
+          <div className="h-1 w-12 rounded-full bg-gray-700/80 transition-colors group-hover:bg-purple-500/70" />
+        </div>
+
+        <div data-tutorial="participant-roster" className="flex min-h-0 flex-1 flex-col border-t border-gray-700/50">
           <ParticipantRoster
             participants={participants}
             currentSpeakerId={currentSpeakerId}
