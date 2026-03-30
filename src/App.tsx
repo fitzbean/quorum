@@ -164,6 +164,9 @@ export default function App() {
   const interjectionRef = useRef<string[]>([]);
   const stopRequestedRef = useRef(false);
   const isPausedRef = useRef(false);
+  const discussionStartedAtRef = useRef<number | null>(null);
+  const pausedAtRef = useRef<number | null>(null);
+  const totalPausedMsRef = useRef(0);
   const conversationHistoryRef = useRef<Message[]>([]);
   const noteTakerConfigRef = useRef(noteTakerConfig);
   const participantsRef = useRef(participants);
@@ -257,6 +260,44 @@ export default function App() {
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
+
+  useEffect(() => {
+    if (!isRunning) return;
+
+    if (isPaused) {
+      if (pausedAtRef.current === null) {
+        pausedAtRef.current = Date.now();
+      }
+      return;
+    }
+
+    if (pausedAtRef.current !== null) {
+      totalPausedMsRef.current += Date.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
+  }, [isPaused, isRunning]);
+
+  const getElapsedDiscussionSeconds = useCallback(() => {
+    if (discussionStartedAtRef.current === null) return 0;
+
+    const now = pausedAtRef.current ?? Date.now();
+    const elapsedMs = now - discussionStartedAtRef.current - totalPausedMsRef.current;
+
+    return Math.max(Math.floor(elapsedMs / 1000), 0);
+  }, []);
+
+  useEffect(() => {
+    if (!isRunning) return;
+
+    const syncElapsed = () => {
+      setElapsedSeconds(Math.min(getElapsedDiscussionSeconds(), durationSeconds));
+    };
+
+    syncElapsed();
+    const intervalId = window.setInterval(syncElapsed, 250);
+
+    return () => window.clearInterval(intervalId);
+  }, [durationSeconds, getElapsedDiscussionSeconds, isRunning]);
 
   useEffect(() => {
     const container = messagesContainerRef.current;
@@ -606,7 +647,9 @@ export default function App() {
     setIsRunning(true);
     stopRequestedRef.current = false;
     setElapsedSeconds(0);
-    const discussionStartTime = Date.now();
+    discussionStartedAtRef.current = Date.now();
+    pausedAtRef.current = null;
+    totalPausedMsRef.current = 0;
 
     const preferredRoles = selectedPreset?.preferredRoles || [];
     const rolePriority = new Map(preferredRoles.map((role, index) => [role, index]));
@@ -639,7 +682,7 @@ export default function App() {
     }
 
     while (!stopRequestedRef.current) {
-      const elapsed = Math.floor((Date.now() - discussionStartTime) / 1000);
+      const elapsed = getElapsedDiscussionSeconds();
       if (elapsed >= durationSeconds) break;
       setElapsedSeconds(elapsed);
 
@@ -764,14 +807,18 @@ export default function App() {
         }
       }
       // check time after completing a full pass through participants
-      if (Math.floor((Date.now() - discussionStartTime) / 1000) >= durationSeconds) break;
+      if (getElapsedDiscussionSeconds() >= durationSeconds) break;
     }
 
-    setElapsedSeconds(Math.min(Math.floor((Date.now() - discussionStartTime) / 1000), durationSeconds));
+    setElapsedSeconds(Math.min(getElapsedDiscussionSeconds(), durationSeconds));
     conversationHistoryRef.current = conversationHistory;
     setCurrentSpeakerId(null);
     setIsRunning(false);
-  }, [topic, selectedPreset, durationSeconds, attachmentContext, generateMessage, generateNote]);
+    setIsPaused(false);
+    discussionStartedAtRef.current = null;
+    pausedAtRef.current = null;
+    totalPausedMsRef.current = 0;
+  }, [topic, selectedPreset, durationSeconds, attachmentContext, generateMessage, generateNote, getElapsedDiscussionSeconds]);
 
   const handleStop = useCallback(() => {
     stopRequestedRef.current = true;
@@ -779,6 +826,9 @@ export default function App() {
     setIsRunning(false);
     setCurrentSpeakerId(null);
     setIsPaused(false);
+    discussionStartedAtRef.current = null;
+    pausedAtRef.current = null;
+    totalPausedMsRef.current = 0;
   }, [stopGeneration]);
 
   const handleReset = useCallback(() => {
@@ -789,6 +839,9 @@ export default function App() {
     interjectionRef.current = [];
     conversationHistoryRef.current = [];
     setElapsedSeconds(0);
+    discussionStartedAtRef.current = null;
+    pausedAtRef.current = null;
+    totalPausedMsRef.current = 0;
     setNotes([]);
     setInterjectText('');
     setHighlightedMessageId(null);
@@ -948,6 +1001,11 @@ export default function App() {
   }, [topic, durationSeconds, generateRecap]);
 
   const activeCount = participants.filter((p) => p.isActive).length;
+
+  const remainingSeconds = Math.max(durationSeconds - elapsedSeconds, 0);
+
+  const formatClock = (totalSeconds: number) =>
+    `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-950 text-white">
@@ -1163,8 +1221,8 @@ export default function App() {
                   key={msg.id}
                   message={msg}
                   participants={participants}
-                  isHighlighted={highlightedMessageId === msg.id}
-                  onHighlight={msg.role === 'assistant' ? () => setHighlightedMessageId((prev) => prev === msg.id ? null : msg.id) : undefined}
+                  onHighlight={() => setHighlightedMessageId(msg.id)}
+                  isHighlighted={msg.id === highlightedMessageId}
                 />
               ))}
               <div ref={messagesEndRef} />
@@ -1183,38 +1241,38 @@ export default function App() {
                     ? '✋ Solicit response'
                     : '✋ Start a discussion to interject'}
             </div>
-              <div className="flex flex-1 items-center gap-2 rounded-2xl border border-amber-500/30 bg-gray-950/90 px-3 py-2 shadow-[0_0_0_1px_rgba(245,158,11,0.05)]">
-               <button
-                 onClick={handleTogglePause}
-                 disabled={!apiKey || !isRunning}
-                 title={isPaused ? 'Resume discussion' : 'Pause before the next speaker'}
-                 className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
-                   isPaused
-                     ? 'border-amber-400 bg-amber-500/20 text-amber-300'
-                     : 'border-amber-500/40 bg-gray-900 text-amber-400 hover:bg-gray-800'
-                 }`}
-               >
-                 {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-               </button>
-               <input
-                 value={interjectText}
-                 onChange={(e) => setInterjectText(e.target.value)}
+            <div className="flex flex-1 items-center gap-2 rounded-2xl border border-amber-500/30 bg-gray-950/90 px-3 py-2 shadow-[0_0_0_1px_rgba(245,158,11,0.05)]">
+              <button
+                onClick={handleTogglePause}
+                disabled={!apiKey || !isRunning}
+                title={isPaused ? 'Resume discussion' : 'Pause before the next speaker'}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                  isPaused
+                    ? 'border-amber-400 bg-amber-500/20 text-amber-300'
+                    : 'border-amber-500/40 bg-gray-900 text-amber-400 hover:bg-gray-800'
+                }`}
+              >
+                {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+              </button>
+              <input
+                value={interjectText}
+                onChange={(e) => setInterjectText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     isRunning ? handleSubmitInterjection() : handleSolicitResponse();
                   }
                 }}
-                 placeholder={
-                   isRunning
-                     ? 'Type an interjection for the next turn...'
-                     : messages.length > 0
-                       ? highlightedMessageId ? 'Ask the highlighted participant...' : 'Solicit a response from a participant...'
-                       : 'Interjections unlock during a live discussion'
-                 }
-                 disabled={!apiKey || messages.length === 0}
-                 className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none disabled:cursor-not-allowed"
-               />
+                placeholder={
+                  isRunning
+                    ? 'Type an interjection for the next turn...'
+                    : messages.length > 0
+                      ? highlightedMessageId ? 'Ask the highlighted participant...' : 'Solicit a response from a participant...'
+                      : 'Interjections unlock during a live discussion'
+                }
+                disabled={!apiKey || messages.length === 0}
+                className="min-w-0 flex-1 bg-transparent text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none disabled:cursor-not-allowed"
+              />
               <button
                 onClick={isRunning ? handleSubmitInterjection : handleSolicitResponse}
                 disabled={!apiKey || messages.length === 0 || !interjectText.trim()}
@@ -1224,30 +1282,39 @@ export default function App() {
                 <Send className="h-4 w-4" />
               </button>
             </div>
-            {highlightedMessageId && (() => {
-              const highlighted = messages.find((message) => message.id === highlightedMessageId);
-              return highlighted ? (
-                <div className="mt-2 mx-auto max-w-3xl rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-3 py-2 text-xs text-cyan-100">
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1 font-medium text-cyan-300">
-                      <Hand className="h-3.5 w-3.5" />
-                      {isRunning ? 'Interjecting about selected panel response' : 'Soliciting response about selected message'}
-                    </span>
-                    <button
-                      onClick={() => setHighlightedMessageId(null)}
-                      className="text-[10px] text-cyan-400 hover:text-cyan-200"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <p className="line-clamp-2 text-cyan-50/90">{highlighted.content}</p>
-                </div>
-              ) : null;
-            })()}
-            <p className="hidden max-w-[20rem] shrink-0 text-right text-[10px] text-gray-600 lg:block">
-              {participants.length} participant{participants.length !== 1 ? 's' : ''}
-            </p>
+            <div className="hidden shrink-0 items-end text-right lg:flex lg:flex-col">
+              {isRunning ? (
+                <>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Time Left</span>
+                  <span className="text-xs font-semibold text-green-400">{formatClock(remainingSeconds)}</span>
+                </>
+              ) : (
+                <p className="max-w-[20rem] text-[10px] text-gray-600">
+                  {participants.length} participant{participants.length !== 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
           </div>
+          {highlightedMessageId && (() => {
+            const highlighted = messages.find((message) => message.id === highlightedMessageId);
+            return highlighted ? (
+              <div className="mt-2 mx-auto max-w-3xl rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-3 py-2 text-xs text-cyan-100">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1 font-medium text-cyan-300">
+                    <Hand className="h-3.5 w-3.5" />
+                    {isRunning ? 'Interjecting about selected panel response' : 'Soliciting response about selected message'}
+                  </span>
+                  <button
+                    onClick={() => setHighlightedMessageId(null)}
+                    className="text-[10px] text-cyan-400 hover:text-cyan-200"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <p className="line-clamp-2 text-cyan-50/90">{highlighted.content}</p>
+              </div>
+            ) : null;
+          })()}
         </div>
       </div>
 
