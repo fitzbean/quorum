@@ -1117,7 +1117,7 @@ export default function App() {
               )}
             </div>
           </div>
-          <div className="relative min-h-0 flex-1 overflow-hidden">
+          <div data-tutorial="context-panel" className="relative min-h-0 flex-1 overflow-hidden">
             <ContextPanel
               onSendMessage={handleUserMessage}
               onSystemInstructionsChange={setSystemInstructions}

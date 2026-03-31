@@ -38,7 +38,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     description: 'Start on the left by giving the panel context. You can add source files, write a prompt, and save system instructions before the discussion begins.',
     accent: 'from-indigo-600 to-purple-500',
     icon: Sparkles,
-    target: '[data-tutorial="input-panel"]',
+    target: '[data-tutorial="context-panel"]',
     placement: 'right',
     cta: 'Show panel setup',
     points: [
@@ -118,6 +118,17 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function getPlacementOrder(placement: TutorialPlacement): TutorialPlacement[] {
+  const fallbackPlacement: Record<TutorialPlacement, TutorialPlacement[]> = {
+    right: ['right', 'left', 'bottom', 'top'],
+    left: ['left', 'right', 'bottom', 'top'],
+    top: ['top', 'bottom', 'right', 'left'],
+    bottom: ['bottom', 'top', 'right', 'left'],
+  };
+
+  return fallbackPlacement[placement];
+}
+
 function getCardPosition(rect: HighlightRect | null, placement: TutorialStep['placement']) {
   const cardWidth = Math.min(420, window.innerWidth - 32);
   const viewportPadding = 16;
@@ -154,35 +165,45 @@ function getCardPosition(rect: HighlightRect | null, placement: TutorialStep['pl
     },
   };
 
-  const preferred = placements[placement];
-  const clampedTop = clamp(preferred.top, viewportPadding, Math.max(window.innerHeight - cardHeight - viewportPadding, viewportPadding));
-  const clampedLeft = clamp(preferred.left, viewportPadding, Math.max(window.innerWidth - cardWidth - viewportPadding, viewportPadding));
+  const maxTop = Math.max(window.innerHeight - cardHeight - viewportPadding, viewportPadding);
+  const maxLeft = Math.max(window.innerWidth - cardWidth - viewportPadding, viewportPadding);
 
-  const fitsPreferredVertically = preferred.top >= viewportPadding && preferred.top + cardHeight <= window.innerHeight - viewportPadding;
-  const fitsPreferredHorizontally = preferred.left >= viewportPadding && preferred.left + cardWidth <= window.innerWidth - viewportPadding;
+  const fitsWithoutOverlap = (candidate: TutorialPlacement) => {
+    if (candidate === 'left') {
+      return rect.left - margin - cardWidth >= viewportPadding;
+    }
 
-  const fallbackPlacement: Partial<Record<TutorialPlacement, TutorialPlacement>> = {
-    top: 'bottom',
-    bottom: 'top',
-    left: 'right',
-    right: 'left',
+    if (candidate === 'right') {
+      return rect.left + rect.width + margin + cardWidth <= window.innerWidth - viewportPadding;
+    }
+
+    if (candidate === 'top') {
+      return rect.top - margin - cardHeight >= viewportPadding;
+    }
+
+    return rect.top + rect.height + margin + cardHeight <= window.innerHeight - viewportPadding;
   };
 
-  if ((!fitsPreferredVertically || !fitsPreferredHorizontally) && fallbackPlacement[placement]) {
-    const fallback = placements[fallbackPlacement[placement]!];
+  for (const candidate of getPlacementOrder(placement)) {
+    if (!fitsWithoutOverlap(candidate)) {
+      continue;
+    }
+
+    const preferred = placements[candidate];
     return {
       width: cardWidth,
       maxHeight: cardHeight,
-      top: clamp(fallback.top, viewportPadding, Math.max(window.innerHeight - cardHeight - viewportPadding, viewportPadding)),
-      left: clamp(fallback.left, viewportPadding, Math.max(window.innerWidth - cardWidth - viewportPadding, viewportPadding)),
+      top: clamp(preferred.top, viewportPadding, maxTop),
+      left: clamp(preferred.left, viewportPadding, maxLeft),
     };
   }
 
+  const preferred = placements[placement];
   return {
     width: cardWidth,
     maxHeight: cardHeight,
-    top: clampedTop,
-    left: clampedLeft,
+    top: clamp(preferred.top, viewportPadding, maxTop),
+    left: clamp(preferred.left, viewportPadding, maxLeft),
   };
 }
 
@@ -241,21 +262,29 @@ function TutorialModalInner({ initialStep, onClose }: TutorialModalInnerProps) {
   }, [step.target]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/72">
-      {highlightRect && (
-        <div
-          className="pointer-events-none fixed rounded-[28px] border border-purple-400/80 bg-transparent shadow-[0_0_0_9999px_rgba(3,7,18,0.72),0_0_0_1px_rgba(196,181,253,0.35),0_0_28px_rgba(168,85,247,0.35)] transition-all duration-300"
-          style={{
-            top: highlightRect.top,
-            left: highlightRect.left,
-            width: highlightRect.width,
-            height: highlightRect.height,
-          }}
-        />
+    <div className="fixed inset-0 z-50">
+      {highlightRect ? (
+        <>
+          <div className="pointer-events-none fixed inset-x-0 top-0 bg-black/72 transition-all duration-300" style={{ height: highlightRect.top }} />
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 bg-black/72 transition-all duration-300" style={{ top: highlightRect.top + highlightRect.height }} />
+          <div className="pointer-events-none fixed left-0 bg-black/72 transition-all duration-300" style={{ top: highlightRect.top, width: highlightRect.left, height: highlightRect.height }} />
+          <div className="pointer-events-none fixed right-0 bg-black/72 transition-all duration-300" style={{ top: highlightRect.top, left: highlightRect.left + highlightRect.width, height: highlightRect.height }} />
+          <div
+            className="pointer-events-none fixed rounded-[24px] border border-purple-300/90 shadow-[0_0_0_1px_rgba(216,180,254,0.35),0_0_22px_rgba(168,85,247,0.35),inset_0_0_0_1px_rgba(255,255,255,0.04)] transition-all duration-300"
+            style={{
+              top: highlightRect.top,
+              left: highlightRect.left,
+              width: highlightRect.width,
+              height: highlightRect.height,
+            }}
+          />
+        </>
+      ) : (
+        <div className="pointer-events-none fixed inset-0 bg-black/72" />
       )}
 
       <div
-        className="fixed overflow-hidden rounded-3xl border border-gray-700 bg-gray-900 shadow-2xl transition-all duration-300"
+        className="fixed flex flex-col overflow-hidden rounded-3xl border border-gray-700 bg-gray-900 shadow-2xl transition-all duration-300"
         style={{
           top: cardPosition.top,
           left: cardPosition.left,
@@ -297,21 +326,23 @@ function TutorialModalInner({ initialStep, onClose }: TutorialModalInnerProps) {
           </div>
         </div>
 
-        <div className="space-y-6 overflow-y-auto px-6 py-6">
-          <p className="text-sm leading-7 text-gray-300">{step.description}</p>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="space-y-6 overflow-y-auto px-6 py-6">
+            <p className="text-sm leading-7 text-gray-300">{step.description}</p>
 
-          <div className="grid gap-3">
-            {step.points.map((point) => (
-              <div
-                key={point}
-                className="rounded-2xl border border-gray-700/80 bg-gray-800/80 px-4 py-3 text-sm text-gray-200"
-              >
-                {point}
-              </div>
-            ))}
+            <div className="grid gap-3">
+              {step.points.map((point) => (
+                <div
+                  key={point}
+                  className="rounded-2xl border border-gray-700/80 bg-gray-800/80 px-4 py-3 text-sm text-gray-200"
+                >
+                  {point}
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-gray-800 pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-shrink-0 flex-col gap-3 border-t border-gray-800 bg-gray-900 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
             <button
               onClick={() => setCurrentStep((prev) => Math.max(prev - 1, 0))}
               disabled={isFirstStep}
