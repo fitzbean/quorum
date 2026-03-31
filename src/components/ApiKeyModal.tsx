@@ -4,6 +4,7 @@ import { APP_BYLINE, APP_NAME } from '../appConfig';
 import type { ModelOption, PanelMember, ParticipantPreset, RoleVisibility } from '../types';
 
 type ModalTab = 'connection' | 'roles' | 'traits';
+type RoleEditorTab = 'info' | 'prompt';
 
 interface ApiKeyModalProps {
   onSave: (key: string) => void;
@@ -31,6 +32,127 @@ const CATEGORY_LABELS: Record<RoleCategory, string> = {
 };
 
 const CATEGORY_ORDER: RoleCategory[] = ['core', 'creative', 'technical', 'business', 'specialist'];
+const ROLE_APPEARANCE_OPTIONS = [
+  {
+    id: 'indigo',
+    label: 'Indigo',
+    color: 'text-indigo-300',
+    bgColor: 'bg-indigo-900/40',
+    borderColor: 'border-indigo-500/60',
+  },
+  {
+    id: 'purple',
+    label: 'Purple',
+    color: 'text-purple-300',
+    bgColor: 'bg-purple-900/40',
+    borderColor: 'border-purple-500/60',
+  },
+  {
+    id: 'blue',
+    label: 'Blue',
+    color: 'text-blue-300',
+    bgColor: 'bg-blue-900/40',
+    borderColor: 'border-blue-500/60',
+  },
+  {
+    id: 'emerald',
+    label: 'Emerald',
+    color: 'text-emerald-300',
+    bgColor: 'bg-emerald-900/40',
+    borderColor: 'border-emerald-500/60',
+  },
+  {
+    id: 'amber',
+    label: 'Amber',
+    color: 'text-amber-300',
+    bgColor: 'bg-amber-900/40',
+    borderColor: 'border-amber-500/60',
+  },
+  {
+    id: 'rose',
+    label: 'Rose',
+    color: 'text-rose-300',
+    bgColor: 'bg-rose-900/40',
+    borderColor: 'border-rose-500/60',
+  },
+  {
+    id: 'teal',
+    label: 'Teal',
+    color: 'text-teal-300',
+    bgColor: 'bg-teal-900/40',
+    borderColor: 'border-teal-500/60',
+  },
+  {
+    id: 'slate',
+    label: 'Slate',
+    color: 'text-slate-300',
+    bgColor: 'bg-slate-800/60',
+    borderColor: 'border-slate-500/60',
+  },
+  {
+    id: 'cyan',
+    label: 'Cyan',
+    color: 'text-cyan-300',
+    bgColor: 'bg-cyan-900/40',
+    borderColor: 'border-cyan-500/60',
+  },
+  {
+    id: 'sky',
+    label: 'Sky',
+    color: 'text-sky-300',
+    bgColor: 'bg-sky-900/40',
+    borderColor: 'border-sky-500/60',
+  },
+  {
+    id: 'violet',
+    label: 'Violet',
+    color: 'text-violet-300',
+    bgColor: 'bg-violet-900/40',
+    borderColor: 'border-violet-500/60',
+  },
+  {
+    id: 'fuchsia',
+    label: 'Fuchsia',
+    color: 'text-fuchsia-300',
+    bgColor: 'bg-fuchsia-900/40',
+    borderColor: 'border-fuchsia-500/60',
+  },
+  {
+    id: 'pink',
+    label: 'Pink',
+    color: 'text-pink-300',
+    bgColor: 'bg-pink-900/40',
+    borderColor: 'border-pink-500/60',
+  },
+  {
+    id: 'orange',
+    label: 'Orange',
+    color: 'text-orange-300',
+    bgColor: 'bg-orange-900/40',
+    borderColor: 'border-orange-500/60',
+  },
+  {
+    id: 'yellow',
+    label: 'Yellow',
+    color: 'text-yellow-300',
+    bgColor: 'bg-yellow-900/40',
+    borderColor: 'border-yellow-500/60',
+  },
+  {
+    id: 'lime',
+    label: 'Lime',
+    color: 'text-lime-300',
+    bgColor: 'bg-lime-900/40',
+    borderColor: 'border-lime-500/60',
+  },
+  {
+    id: 'stone',
+    label: 'Stone',
+    color: 'text-stone-300',
+    bgColor: 'bg-stone-900/40',
+    borderColor: 'border-stone-500/60',
+  },
+] as const;
 
 const DEFAULT_ROLE_TEMPLATE = {
   role: '',
@@ -78,6 +200,34 @@ function buildDraft(preset: ParticipantPreset | null, availableModels: ModelOpti
   };
 }
 
+function normalizePresetForCompare(preset: ParticipantPreset) {
+  return JSON.stringify({
+    role: preset.role,
+    label: preset.label,
+    emoji: preset.emoji,
+    color: preset.color,
+    bgColor: preset.bgColor,
+    borderColor: preset.borderColor,
+    defaultModel: preset.defaultModel,
+    category: preset.category,
+    description: preset.description,
+    systemPrompt: preset.systemPrompt,
+    defaultPersonalityTraits: [...(preset.defaultPersonalityTraits ?? [])].sort(),
+    isBuiltIn: Boolean(preset.isBuiltIn),
+  });
+}
+
+function getAppearanceOptionId(preset: ParticipantPreset): string {
+  return (
+    ROLE_APPEARANCE_OPTIONS.find(
+      (option) =>
+        option.color === preset.color &&
+        option.bgColor === preset.bgColor &&
+        option.borderColor === preset.borderColor
+    )?.id ?? ROLE_APPEARANCE_OPTIONS[0].id
+  );
+}
+
 export function ApiKeyModal({
   onSave,
   existingKey,
@@ -101,7 +251,13 @@ export function ApiKeyModal({
   const [roleDraft, setRoleDraft] = useState<ParticipantPreset>(() => buildDraft(participantPresets[0] ?? null, availableModels));
   const [promptModel, setPromptModel] = useState(() => pickPromptGeneratorModel(availableModels));
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
+  const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
+  const [isGeneratingTrait, setIsGeneratingTrait] = useState(false);
   const [generationError, setGenerationError] = useState('');
+  const [libraryCategoryFilter, setLibraryCategoryFilter] = useState<RoleCategory | 'all'>('all');
+  const [appearanceOptionId, setAppearanceOptionId] = useState<string>(() => ROLE_APPEARANCE_OPTIONS[0].id);
+  const [isRoleIdManuallyEdited, setIsRoleIdManuallyEdited] = useState(false);
+  const [roleEditorTab, setRoleEditorTab] = useState<RoleEditorTab>('info');
 
   const isFirstTime = !existingKey;
   const hasChanged = sanitize(key) !== sanitize(existingKey || '');
@@ -112,7 +268,20 @@ export function ApiKeyModal({
   const isNewRole = selectedRoleId === '__new__';
   const isVisible = roleVisibility ? roleVisibility[roleDraft.role] !== false : true;
   const roleExists = participantPresets.some((preset) => preset.role === roleDraft.role);
+  const hasRoleChanges = isNewRole
+    ? Boolean(
+        roleDraft.role ||
+        roleDraft.label ||
+        roleDraft.description ||
+        roleDraft.systemPrompt ||
+        roleDraft.emoji !== DEFAULT_ROLE_TEMPLATE.emoji ||
+        roleDraft.category !== DEFAULT_ROLE_TEMPLATE.category ||
+        roleDraft.defaultModel !== (availableModels[0]?.id ?? '') ||
+        roleDraft.defaultPersonalityTraits.join('|') !== DEFAULT_ROLE_TEMPLATE.defaultPersonalityTraits.join('|')
+      )
+    : Boolean(selectedPreset) && normalizePresetForCompare(roleDraft) !== normalizePresetForCompare(selectedPreset);
   const canSaveRole =
+    hasRoleChanges &&
     Boolean(roleDraft.role && roleDraft.label && roleDraft.description && roleDraft.systemPrompt.trim()) &&
     (!isNewRole || !roleExists);
 
@@ -133,6 +302,9 @@ export function ApiKeyModal({
     }
 
     setRoleDraft(buildDraft(nextPreset, availableModels));
+    setAppearanceOptionId(getAppearanceOptionId(nextPreset ?? buildDraft(null, availableModels)));
+    setIsRoleIdManuallyEdited(false);
+    setRoleEditorTab('info');
     setGenerationError('');
   }, [availableModels, isNewRole, participantPresets, selectedRoleId]);
 
@@ -144,6 +316,13 @@ export function ApiKeyModal({
         presets: participantPresets.filter((preset) => preset.category === category),
       })).filter((group) => group.presets.length > 0),
     [participantPresets]
+  );
+  const filteredLibraryPresets = useMemo(
+    () =>
+      libraryCategoryFilter === 'all'
+        ? participantPresets
+        : participantPresets.filter((preset) => preset.category === libraryCategoryFilter),
+    [libraryCategoryFilter, participantPresets]
   );
 
   const handleSave = () => {
@@ -157,7 +336,11 @@ export function ApiKeyModal({
 
   const handleStartNewRole = () => {
     setSelectedRoleId('__new__');
-    setRoleDraft(buildDraft(null, availableModels));
+    const nextDraft = buildDraft(null, availableModels);
+    setRoleDraft(nextDraft);
+    setAppearanceOptionId(getAppearanceOptionId(nextDraft));
+    setIsRoleIdManuallyEdited(false);
+    setRoleEditorTab('info');
     setGenerationError('');
   };
 
@@ -248,6 +431,137 @@ export function ApiKeyModal({
     }
   };
 
+  const handleGenerateMetadata = async () => {
+    if (!apiKey || !roleDraft.label.trim()) {
+      setGenerationError('Add an API key and role name first.');
+      return;
+    }
+
+    setIsGeneratingMetadata(true);
+    setGenerationError('');
+
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'X-Title': APP_NAME,
+        },
+        body: JSON.stringify({
+          model: promptModel,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You classify AI collaborator roles. Return valid JSON only with keys emoji, category, and description. Category must be one of: core, creative, technical, business, specialist. Emoji must be a single fitting emoji. Description should be a concise one-line summary under 80 characters.',
+            },
+            {
+              role: 'user',
+              content:
+                `Role name: ${roleDraft.label}\n` +
+                `Description: ${roleDraft.description || 'No description yet'}\n` +
+                `System prompt: ${roleDraft.systemPrompt || 'No system prompt yet'}`,
+            },
+          ],
+          temperature: 0.4,
+          max_tokens: 80,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Metadata generation failed (${response.status})`);
+      }
+
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const rawContent = data.choices?.[0]?.message?.content?.trim();
+      if (!rawContent) {
+        throw new Error('No metadata returned by the model.');
+      }
+
+      const parsed = JSON.parse(rawContent) as { emoji?: string; category?: string; description?: string };
+      const nextCategory = CATEGORY_ORDER.includes((parsed.category ?? '') as RoleCategory)
+        ? (parsed.category as RoleCategory)
+        : roleDraft.category;
+
+      setRoleDraft((current) => ({
+        ...current,
+        emoji: parsed.emoji?.trim() || current.emoji,
+        category: nextCategory,
+        description: parsed.description?.trim() || current.description,
+      }));
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : 'Metadata generation failed.');
+    } finally {
+      setIsGeneratingMetadata(false);
+    }
+  };
+
+  const handleGenerateTrait = async () => {
+    if (!apiKey || !onAddTrait) {
+      setGenerationError('Add an API key first.');
+      return;
+    }
+
+    setIsGeneratingTrait(true);
+    setGenerationError('');
+
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'X-Title': APP_NAME,
+        },
+        body: JSON.stringify({
+          model: promptModel,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'Generate exactly one concise personality trait for an AI discussion participant. Output only the trait in lowercase using underscores if needed. No punctuation, no explanation.',
+            },
+            {
+              role: 'user',
+              content:
+                `Existing traits: ${(customTraits ?? []).join(', ')}\n` +
+                'Return a new distinct trait that would be useful in a collaborative panel discussion app.',
+            },
+          ],
+          temperature: 1,
+          max_tokens: 20,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Trait generation failed (${response.status})`);
+      }
+
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const content = data.choices?.[0]?.message?.content?.trim();
+      if (!content) {
+        throw new Error('No trait returned by the model.');
+      }
+
+      const normalized = content.toLowerCase().replace(/[^a-z0-9\s_-]/g, '').trim().replace(/[\s-]+/g, '_');
+      if (!normalized) {
+        throw new Error('Generated trait was invalid.');
+      }
+
+      onAddTrait(normalized);
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : 'Trait generation failed.');
+    } finally {
+      setIsGeneratingTrait(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <div
@@ -287,7 +601,7 @@ export function ApiKeyModal({
               className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${activeTab === 'roles' ? 'bg-indigo-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
             >
               <span className="flex items-center justify-center gap-1.5">
-                <Users className="h-3.5 w-3.5" /> Role Library
+                <Users className="h-3.5 w-3.5" /> Roles
                 <span className="rounded-full bg-gray-700 px-1.5 py-0 text-[9px] text-gray-300">{enabledCount}/{participantPresets.length}</span>
               </span>
             </button>
@@ -374,25 +688,13 @@ export function ApiKeyModal({
             <div className="grid gap-6 px-8 py-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
               <div className="space-y-4">
                 <div className="rounded-2xl border border-gray-700 bg-gray-800/60 p-4">
-                  <p className="mb-2 text-xs leading-relaxed text-gray-400">
-                    Roles now live in a local role library. Pick one to edit it, or add a new one from scratch.
-                  </p>
-                  <div className="flex gap-2">
-                    <select
-                      value={selectedRoleId}
-                      onChange={(event) => setSelectedRoleId(event.target.value)}
-                      className="min-w-0 flex-1 rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
-                    >
-                      {groupedRoles.map((group) => (
-                        <optgroup key={group.category} label={group.label}>
-                          {group.presets.map((preset) => (
-                            <option key={preset.role} value={preset.role}>
-                              {preset.emoji} {preset.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Role Library</p>
+                      <p className="mt-1 text-xs leading-relaxed text-gray-400">
+                        Pick a role here to edit it, or add a new one from scratch.
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={handleStartNewRole}
@@ -401,210 +703,290 @@ export function ApiKeyModal({
                       <Plus className="h-3.5 w-3.5" /> Add
                     </button>
                   </div>
-                </div>
-
-                <div className="rounded-2xl border border-gray-700 bg-gray-800/60 p-4">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Library Overview</p>
-                  <div className="space-y-2">
-                    {participantPresets.map((preset) => (
+                  <div className="mb-3 flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setLibraryCategoryFilter('all')}
+                      className={`rounded-full border px-2 py-1 text-[10px] font-semibold transition-all ${
+                        libraryCategoryFilter === 'all'
+                          ? 'border-indigo-500/50 bg-indigo-700/30 text-indigo-200'
+                          : 'border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-600 hover:text-gray-200'
+                      }`}
+                    >
+                      All
+                    </button>
+                    {CATEGORY_ORDER.map((category) => (
                       <button
-                        key={preset.role}
+                        key={category}
                         type="button"
-                        onClick={() => setSelectedRoleId(preset.role)}
-                        className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left transition-all ${
-                          selectedRoleId === preset.role ? 'border-indigo-500/70 bg-indigo-900/20' : 'border-gray-700 bg-gray-900 hover:border-gray-600'
+                        onClick={() => setLibraryCategoryFilter(category)}
+                        className={`rounded-full border px-2 py-1 text-[10px] font-semibold transition-all ${
+                          libraryCategoryFilter === category
+                            ? 'border-indigo-500/50 bg-indigo-700/30 text-indigo-200'
+                            : 'border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-600 hover:text-gray-200'
                         }`}
                       >
-                        <span className="text-base">{preset.emoji}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-xs font-semibold text-gray-100">{preset.label}</div>
-                          <div className="truncate text-[10px] text-gray-500">{preset.role}</div>
-                        </div>
-                        <span className={`h-2.5 w-2.5 rounded-full ${roleVisibility?.[preset.role] !== false ? 'bg-indigo-400' : 'bg-gray-700'}`} />
+                        {CATEGORY_LABELS[category]}
                       </button>
                     ))}
+                  </div>
+                  <div className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">
+                    {filteredLibraryPresets.map((preset) => (
+                      <div
+                        key={preset.role}
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-2 transition-all ${
+                          selectedRoleId === preset.role ? 'border-indigo-500/70 bg-indigo-900/20' : 'border-gray-700 bg-gray-900'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRoleId(preset.role)}
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        >
+                          <span className="text-base">{preset.emoji}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-xs font-semibold text-gray-100">{preset.label}</div>
+                            <div className="truncate text-[10px] text-gray-500">{preset.role}</div>
+                          </div>
+                        </button>
+                        {onToggleRoleVisibility && (
+                          <button
+                            type="button"
+                            onClick={() => onToggleRoleVisibility(preset.role)}
+                            title={roleVisibility?.[preset.role] !== false ? 'Hide role' : 'Show role'}
+                            aria-label={roleVisibility?.[preset.role] !== false ? `Hide ${preset.label}` : `Show ${preset.label}`}
+                            className={`flex h-8 w-8 items-center justify-center rounded-full border transition-all ${
+                              roleVisibility?.[preset.role] !== false
+                                ? 'border-indigo-500/50 bg-indigo-700/30 text-indigo-200'
+                                : 'border-gray-700 bg-gray-800 text-gray-400'
+                            }`}
+                          >
+                            {roleVisibility?.[preset.role] !== false ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {filteredLibraryPresets.length === 0 && (
+                      <div className="rounded-xl border border-dashed border-gray-700 bg-gray-900/60 px-3 py-4 text-center text-xs text-gray-500">
+                        No roles in this category yet.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <div className="grid gap-4 rounded-2xl border border-gray-700 bg-gray-800/60 p-4">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <label className="space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Role Name</span>
-                      <input
-                        value={roleDraft.label}
-                        onChange={(event) => setRoleDraft((current) => ({ ...current, label: event.target.value }))}
-                        placeholder="AI Strategist"
-                        className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
-                      />
-                    </label>
-                    <label className="space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Role ID</span>
-                      <input
-                        value={roleDraft.role}
-                        onChange={(event) => setRoleDraft((current) => ({ ...current, role: sanitizeRoleId(event.target.value) }))}
-                        disabled={!isNewRole}
-                        placeholder="ai_strategist"
-                        className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none disabled:opacity-50"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)]">
-                    <label className="space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Emoji</span>
-                      <input
-                        value={roleDraft.emoji}
-                        onChange={(event) => setRoleDraft((current) => ({ ...current, emoji: event.target.value }))}
-                        className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
-                      />
-                    </label>
-                    <label className="space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Category</span>
-                      <select
-                        value={roleDraft.category}
-                        onChange={(event) => setRoleDraft((current) => ({ ...current, category: event.target.value as RoleCategory }))}
-                        className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
-                      >
-                        {CATEGORY_ORDER.map((category) => (
-                          <option key={category} value={category}>{CATEGORY_LABELS[category]}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Default Model</span>
-                      <select
-                        value={roleDraft.defaultModel}
-                        onChange={(event) => setRoleDraft((current) => ({ ...current, defaultModel: event.target.value }))}
-                        className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
-                      >
-                        {availableModels.map((model) => (
-                          <option key={model.id} value={model.id}>{model.name}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <label className="space-y-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Description</span>
-                    <textarea
-                      value={roleDraft.description}
-                      onChange={(event) => setRoleDraft((current) => ({ ...current, description: event.target.value }))}
-                      placeholder="Business-focused sparring partner for strategy, positioning, and decision quality."
-                      className="h-20 w-full resize-none rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
-                    />
-                  </label>
-
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <label className="space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Text Class</span>
-                      <input
-                        value={roleDraft.color}
-                        onChange={(event) => setRoleDraft((current) => ({ ...current, color: event.target.value }))}
-                        className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
-                      />
-                    </label>
-                    <label className="space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">BG Class</span>
-                      <input
-                        value={roleDraft.bgColor}
-                        onChange={(event) => setRoleDraft((current) => ({ ...current, bgColor: event.target.value }))}
-                        className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
-                      />
-                    </label>
-                    <label className="space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Border Class</span>
-                      <input
-                        value={roleDraft.borderColor}
-                        onChange={(event) => setRoleDraft((current) => ({ ...current, borderColor: event.target.value }))}
-                        className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
-                      />
-                    </label>
-                  </div>
-                </div>
-
                 <div className="rounded-2xl border border-gray-700 bg-gray-800/60 p-4">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Default Personality Traits</p>
-                      <p className="text-xs text-gray-500">These are applied when a fresh participant of this role is added.</p>
-                    </div>
-                    {!isNewRole && roleDraft.role && onToggleRoleVisibility && (
-                      <button
-                        type="button"
-                        onClick={() => onToggleRoleVisibility(roleDraft.role)}
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold transition-all ${
-                          isVisible ? 'border-indigo-500/50 bg-indigo-700/30 text-indigo-200' : 'border-gray-700 bg-gray-900 text-gray-400'
-                        }`}
-                      >
-                        {isVisible ? 'Visible' : 'Hidden'}
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(customTraits ?? []).map((trait) => {
-                      const selected = roleDraft.defaultPersonalityTraits?.includes(trait);
-                      return (
-                        <button
-                          key={trait}
-                          type="button"
-                          onClick={() =>
-                            setRoleDraft((current) => ({
-                              ...current,
-                              defaultPersonalityTraits: selected
-                                ? current.defaultPersonalityTraits.filter((item) => item !== trait)
-                                : [...current.defaultPersonalityTraits, trait],
-                            }))
-                          }
-                          className={`rounded-full border px-2 py-1 text-[10px] capitalize transition-all ${
-                            selected ? 'border-indigo-400/60 bg-indigo-500/20 text-indigo-200' : 'border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-600 hover:text-gray-200'
-                          }`}
-                        >
-                          {trait}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-gray-700 bg-gray-800/60 p-4">
-                  <div className="mb-3 flex flex-wrap items-end gap-3">
-                    <label className="min-w-0 flex-1 space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Prompt Generator Model</span>
-                      <select
-                        value={promptModel}
-                        onChange={(event) => setPromptModel(event.target.value)}
-                        className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
-                      >
-                        {availableModels.map((model) => (
-                          <option key={model.id} value={model.id}>{model.name}</option>
-                        ))}
-                      </select>
-                    </label>
+                  <div className="mb-4 flex gap-1 rounded-xl bg-gray-900/80 p-1">
                     <button
                       type="button"
-                      onClick={handleGeneratePrompt}
-                      disabled={isGeneratingPrompt || !availableModels.length}
-                      className="inline-flex items-center gap-1 rounded-xl border border-fuchsia-600/50 bg-fuchsia-700/20 px-3 py-2 text-xs font-semibold text-fuchsia-200 transition-all hover:bg-fuchsia-700/40 disabled:cursor-not-allowed disabled:opacity-40"
+                      onClick={() => setRoleEditorTab('info')}
+                      className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
+                        roleEditorTab === 'info' ? 'bg-indigo-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'
+                      }`}
                     >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      {isGeneratingPrompt ? 'Generating...' : 'Generate Prompt'}
+                      Role Information
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRoleEditorTab('prompt')}
+                      className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
+                        roleEditorTab === 'prompt' ? 'bg-fuchsia-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      System Prompt
                     </button>
                   </div>
 
-                  <label className="space-y-1">
-                    <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                      <Bot className="h-3.5 w-3.5" /> System Prompt
-                    </span>
-                    <textarea
-                      value={roleDraft.systemPrompt}
-                      onChange={(event) => setRoleDraft((current) => ({ ...current, systemPrompt: event.target.value }))}
-                      placeholder="Define the role's expertise, boundaries, and conversational style..."
-                      className="h-64 w-full resize-none rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm leading-relaxed text-gray-200 focus:border-indigo-500 focus:outline-none"
-                    />
-                  </label>
-                  {generationError && <p className="mt-2 text-xs text-rose-400">{generationError}</p>}
+                  {roleEditorTab === 'info' && (
+                    <div className="space-y-4">
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Role Name</span>
+                          <input
+                            value={roleDraft.label}
+                            onChange={(event) =>
+                              setRoleDraft((current) => {
+                                const nextLabel = event.target.value;
+                                return {
+                                  ...current,
+                                  label: nextLabel,
+                                  role: isNewRole && !isRoleIdManuallyEdited ? sanitizeRoleId(nextLabel) : current.role,
+                                };
+                              })
+                            }
+                            placeholder="AI Strategist"
+                            className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
+                          />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Role ID</span>
+                          <input
+                            value={roleDraft.role}
+                            onChange={(event) => {
+                              setIsRoleIdManuallyEdited(true);
+                              setRoleDraft((current) => ({ ...current, role: sanitizeRoleId(event.target.value) }));
+                            }}
+                            disabled={!isNewRole}
+                            placeholder="ai_strategist"
+                            className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)]">
+                        <label className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Emoji</span>
+                          <input
+                            value={roleDraft.emoji}
+                            onChange={(event) => setRoleDraft((current) => ({ ...current, emoji: event.target.value }))}
+                            className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
+                          />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Category</span>
+                          <div className="flex gap-2">
+                            <select
+                              value={roleDraft.category}
+                              onChange={(event) => setRoleDraft((current) => ({ ...current, category: event.target.value as RoleCategory }))}
+                              className="min-w-0 flex-1 rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
+                            >
+                              {CATEGORY_ORDER.map((category) => (
+                                <option key={category} value={category}>{CATEGORY_LABELS[category]}</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={handleGenerateMetadata}
+                              disabled={isGeneratingMetadata}
+                              className="inline-flex items-center gap-1 rounded-xl border border-indigo-600/50 bg-indigo-700/20 px-3 py-2 text-xs font-semibold text-indigo-200 transition-all hover:bg-indigo-700/40 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <Sparkles className="h-3.5 w-3.5" />
+                              {isGeneratingMetadata ? 'Generating...' : 'Generate'}
+                            </button>
+                          </div>
+                        </label>
+                        <label className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Default Model</span>
+                          <select
+                            value={roleDraft.defaultModel}
+                            onChange={(event) => setRoleDraft((current) => ({ ...current, defaultModel: event.target.value }))}
+                            className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
+                          >
+                            {availableModels.map((model) => (
+                              <option key={model.id} value={model.id}>{model.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+
+                      <label className="space-y-1">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Description</span>
+                        <textarea
+                          value={roleDraft.description}
+                          onChange={(event) => setRoleDraft((current) => ({ ...current, description: event.target.value }))}
+                          placeholder="Business-focused sparring partner for strategy, positioning, and decision quality."
+                          className="h-32 w-full resize-none rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
+                        />
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Appearance</span>
+                        <select
+                          value={appearanceOptionId}
+                          onChange={(event) => {
+                            const option = ROLE_APPEARANCE_OPTIONS.find((item) => item.id === event.target.value);
+                            if (!option) return;
+                            setAppearanceOptionId(option.id);
+                            setRoleDraft((current) => ({
+                              ...current,
+                              color: option.color,
+                              bgColor: option.bgColor,
+                              borderColor: option.borderColor,
+                            }));
+                          }}
+                          className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
+                        >
+                          {ROLE_APPEARANCE_OPTIONS.map((option) => (
+                            <option key={option.id} value={option.id}>{option.label}</option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <div>
+                        <div className="mb-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Default Personality Traits</p>
+                          <p className="text-xs text-gray-500">These are applied when a fresh participant of this role is added.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(customTraits ?? []).map((trait) => {
+                            const selected = roleDraft.defaultPersonalityTraits?.includes(trait);
+                            return (
+                              <button
+                                key={trait}
+                                type="button"
+                                onClick={() =>
+                                  setRoleDraft((current) => ({
+                                    ...current,
+                                    defaultPersonalityTraits: selected
+                                      ? current.defaultPersonalityTraits.filter((item) => item !== trait)
+                                      : [...current.defaultPersonalityTraits, trait],
+                                  }))
+                                }
+                                className={`rounded-full border px-2 py-1 text-[10px] capitalize transition-all ${
+                                  selected ? 'border-indigo-400/60 bg-indigo-500/20 text-indigo-200' : 'border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-600 hover:text-gray-200'
+                                }`}
+                              >
+                                {trait}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {roleEditorTab === 'prompt' && (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-end gap-3">
+                        <label className="min-w-0 flex-1 space-y-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Prompt Generator Model</span>
+                          <select
+                            value={promptModel}
+                            onChange={(event) => setPromptModel(event.target.value)}
+                            className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
+                          >
+                            {availableModels.map((model) => (
+                              <option key={model.id} value={model.id}>{model.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleGeneratePrompt}
+                          disabled={isGeneratingPrompt || !availableModels.length}
+                          className="inline-flex items-center gap-1 rounded-xl border border-fuchsia-600/50 bg-fuchsia-700/20 px-3 py-2 text-xs font-semibold text-fuchsia-200 transition-all hover:bg-fuchsia-700/40 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                          {isGeneratingPrompt ? 'Generating...' : 'Generate Prompt'}
+                        </button>
+                      </div>
+
+                      <label className="space-y-1">
+                        <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                          <Bot className="h-3.5 w-3.5" /> System Prompt
+                        </span>
+                        <textarea
+                          value={roleDraft.systemPrompt}
+                          onChange={(event) => setRoleDraft((current) => ({ ...current, systemPrompt: event.target.value }))}
+                          placeholder="Define the role's expertise, boundaries, and conversational style..."
+                          className="h-[23rem] w-full resize-none rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm leading-relaxed text-gray-200 focus:border-indigo-500 focus:outline-none"
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {generationError && <p className="mt-3 text-xs text-rose-400">{generationError}</p>}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -642,47 +1024,77 @@ export function ApiKeyModal({
                 These traits are available across the app, including the default trait sets used by your saved roles.
               </p>
 
-              <div className="flex gap-2">
-                <input
-                  value={newTrait}
-                  onChange={(event) => setNewTrait(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && newTrait.trim()) {
-                      onAddTrait(newTrait);
-                      setNewTrait('');
-                    }
-                  }}
-                  placeholder="Add trait..."
-                  className="flex-1 rounded-xl border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-emerald-500 focus:outline-none"
-                />
-                <button
-                  onClick={() => {
-                    if (newTrait.trim()) {
-                      onAddTrait(newTrait);
-                      setNewTrait('');
-                    }
-                  }}
-                  disabled={!newTrait.trim()}
-                  className="rounded-xl border border-emerald-600/50 bg-emerald-700/40 px-3 py-2 text-xs font-semibold text-emerald-300 transition-all hover:bg-emerald-700/60 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Add
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                {customTraits.map((trait) => (
-                  <span key={trait} className="flex items-center gap-1 rounded-full border border-gray-600 bg-gray-800 px-2.5 py-1 text-xs text-gray-200">
-                    <span className="capitalize">{trait.replace(/_/g, ' ')}</span>
+              <div className="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
+                <div className="space-y-4 rounded-2xl border border-gray-700 bg-gray-800/60 p-4">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Add Trait</p>
+                    <p className="mt-1 text-xs text-gray-500">Create a custom reusable personality trait.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={newTrait}
+                      onChange={(event) => setNewTrait(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && newTrait.trim()) {
+                          onAddTrait(newTrait);
+                          setNewTrait('');
+                        }
+                      }}
+                      placeholder="Add trait..."
+                      className="flex-1 rounded-xl border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-emerald-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => {
+                        if (newTrait.trim()) {
+                          onAddTrait(newTrait);
+                          setNewTrait('');
+                        }
+                      }}
+                      disabled={!newTrait.trim()}
+                      className="rounded-xl border border-emerald-600/50 bg-emerald-700/40 px-3 py-2 text-xs font-semibold text-emerald-300 transition-all hover:bg-emerald-700/60 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="space-y-2">
                     <button
                       type="button"
-                      onClick={() => onRemoveTrait(trait)}
-                      className="ml-0.5 leading-none text-gray-500 transition-colors hover:text-red-400"
+                      onClick={handleGenerateTrait}
+                      disabled={isGeneratingTrait}
+                      className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-indigo-600/50 bg-indigo-700/20 px-3 py-2 text-xs font-semibold text-indigo-200 transition-all hover:bg-indigo-700/40 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      x
+                      <Sparkles className="h-3.5 w-3.5" />
+                      {isGeneratingTrait ? 'Generating Trait...' : 'Generate Trait (AI)'}
                     </button>
-                  </span>
-                ))}
+                    <p className="text-xs text-gray-500">Creates a random new trait that is not already in your list.</p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-700 bg-gray-800/60 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Available Traits</p>
+                      <p className="mt-1 text-xs text-gray-500">{customTraits.length} total</p>
+                    </div>
+                  </div>
+                  <div className="flex max-h-[24rem] flex-wrap gap-1.5 overflow-y-auto pr-1">
+                    {customTraits.map((trait) => (
+                      <span key={trait} className="flex items-center gap-1 rounded-full border border-gray-600 bg-gray-800 px-2.5 py-1 text-xs text-gray-200">
+                        <span className="capitalize">{trait.replace(/_/g, ' ')}</span>
+                        <button
+                          type="button"
+                          onClick={() => onRemoveTrait(trait)}
+                          className="ml-0.5 leading-none text-gray-500 transition-colors hover:text-red-400"
+                        >
+                          x
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
+
+              {generationError && <p className="text-xs text-rose-400">{generationError}</p>}
 
               <button
                 onClick={handleClose}

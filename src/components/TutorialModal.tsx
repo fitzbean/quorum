@@ -63,16 +63,17 @@ const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     title: 'Open system settings',
-    description: 'Use the settings button in the top toolbar to open system settings, which includes your API connection, role visibilit and shared traits.',
+    description: 'Use the settings button in the top toolbar to open system settings.',
     accent: 'from-amber-500 to-orange-500',
     icon: Users,
     target: '[data-tutorial="settings-button"]',
     placement: 'bottom',
     cta: 'Show chat features',
     points: [
-      'Settings consists of three sections: API Connection, Role Visibility, and Shared Traits.',
-      'Role Visibility lets you control which roles are visible and available to add to discussions.',
+      'Settings consists of three sections: Roles, Traits and System Settings.',
+      'Roles lets you create and manage different participant types for your discussions.',
       'Traits let you define shared characteristics that can be applied to participants of the discussion to create unique perspectives and personalities.',
+      'System Settings lets you configure your API connection and other system-wide settings.',
     ],
   },
   {

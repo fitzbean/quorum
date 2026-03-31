@@ -3,10 +3,16 @@ import type { Message, ActiveParticipant, NoteDetailLevel } from '../types';
 import { APP_NAME } from '../appConfig';
 import { NOTE_DETAIL_LEVELS } from '../constants';
 
+interface OpenRouterStreamEvent {
+  choices?: Array<{ delta?: { content?: string } }>;
+  usage?: { cost?: number | string };
+}
+
 interface UseOpenRouterOptions {
   apiKey: string;
   participants: ActiveParticipant[];
   systemInstructions?: string;
+  onUsageCost?: (cost: number) => void;
 }
 
 // Shared SSE streaming helper — returns the full accumulated text
@@ -15,7 +21,8 @@ async function streamSSE(
   body: object,
   headers: Record<string, string>,
   signal: AbortSignal,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  onUsageCost?: (cost: number) => void
 ): Promise<void> {
   const response = await fetch(url, {
     method: 'POST',
@@ -40,6 +47,7 @@ async function streamSSE(
 
   const decoder = new TextDecoder();
   let buffer = '';
+  let reportedCost = false;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -54,11 +62,17 @@ async function streamSSE(
       if (!trimmed || trimmed === 'data: [DONE]') continue;
       if (!trimmed.startsWith('data: ')) continue;
       try {
-        const json = JSON.parse(trimmed.slice(6)) as {
-          choices?: Array<{ delta?: { content?: string } }>;
-        };
+        const json = JSON.parse(trimmed.slice(6)) as OpenRouterStreamEvent;
         const chunk = json.choices?.[0]?.delta?.content;
         if (chunk) onChunk(chunk);
+        if (!reportedCost) {
+          const rawCost = json.usage?.cost;
+          const parsedCost = typeof rawCost === 'string' ? Number(rawCost) : rawCost;
+          if (typeof parsedCost === 'number' && Number.isFinite(parsedCost)) {
+            onUsageCost?.(parsedCost);
+            reportedCost = true;
+          }
+        }
       } catch {
         // skip malformed SSE lines
       }
@@ -66,7 +80,7 @@ async function streamSSE(
   }
 }
 
-export function useOpenRouter({ apiKey, participants, systemInstructions }: UseOpenRouterOptions) {
+export function useOpenRouter({ apiKey, participants, systemInstructions, onUsageCost }: UseOpenRouterOptions) {
   const [isLoading, setIsLoading] = useState(false);
 
   // Separate abort controllers for main generation vs note generation
@@ -208,12 +222,14 @@ export function useOpenRouter({ apiKey, participants, systemInstructions }: UseO
             model: participant.selectedModel,
             messages,
             stream: true,
+            usage: { include: true },
             max_tokens: 400,
             temperature: 0.8,
           },
           sharedHeaders(APP_NAME),
           controller.signal,
-          onChunk
+          onChunk,
+          onUsageCost
         );
         onDone();
       } catch (err: unknown) {
@@ -288,12 +304,14 @@ export function useOpenRouter({ apiKey, participants, systemInstructions }: UseO
             model: noteModel,
             messages,
             stream: true,
+            usage: { include: true },
             max_tokens: 300,
             temperature: 0.2,
           },
           sharedHeaders(`${APP_NAME} - Notes`),
           controller.signal,
-          onChunk
+          onChunk,
+          onUsageCost
         );
         onDone();
       } catch (err: unknown) {
@@ -373,12 +391,14 @@ export function useOpenRouter({ apiKey, participants, systemInstructions }: UseO
             model,
             messages,
             stream: true,
+            usage: { include: true },
             max_tokens: 4000,
             temperature: 0.4,
           },
           sharedHeaders(`${APP_NAME} - Artifact`),
           controller.signal,
-          onChunk
+          onChunk,
+          onUsageCost
         );
         onDone();
       } catch (err: unknown) {
@@ -462,12 +482,14 @@ export function useOpenRouter({ apiKey, participants, systemInstructions }: UseO
             model,
             messages,
             stream: true,
+            usage: { include: true },
             max_tokens: 4000,
             temperature: 0.4,
           },
           sharedHeaders(`${APP_NAME} - Analysis`),
           controller.signal,
-          onChunk
+          onChunk,
+          onUsageCost
         );
         onDone();
       } catch (err: unknown) {
@@ -541,10 +563,11 @@ export function useOpenRouter({ apiKey, participants, systemInstructions }: UseO
       try {
         await streamSSE(
           'https://openrouter.ai/api/v1/chat/completions',
-          { model, messages, stream: true, max_tokens: 3000, temperature: 0.3 },
+          { model, messages, stream: true, usage: { include: true }, max_tokens: 3000, temperature: 0.3 },
           sharedHeaders(`${APP_NAME} - Recap`),
           controller.signal,
-          onChunk
+          onChunk,
+          onUsageCost
         );
         onDone();
       } catch (err: unknown) {

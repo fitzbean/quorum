@@ -4,11 +4,17 @@ import { MODEL_PRESET_DEFINITIONS } from './utils/modelCatalog';
 export const NOTE_TAKER_DEFAULT_MODEL = 'google/gemini-2.0-flash-001';
 
 export const NOTE_DETAIL_LEVELS: Record<NoteDetailLevel, { label: string; emoji: string; description: string; instruction: string }> = {
+  terse: {
+    label: 'Terse',
+    emoji: '⚡',
+    description: 'Minimal as possible',
+    instruction: 'Write a single concise blurb (max 8 words) capturing only the single most important idea from this message. No preamble.',
+  },
   brief: {
     label: 'Brief',
-    emoji: '⚡',
+    emoji: '🐰',
     description: '1–2 sentence TL;DR',
-    instruction: 'Write a single concise sentence (max 25 words) capturing only the single most important idea from this message. No preamble.',
+    instruction: 'Write a 1-2 sentences (max 25 words) capturing only the single most important idea from this message. No preamble.',
   },
   standard: {
     label: 'Standard',
@@ -21,12 +27,6 @@ export const NOTE_DETAIL_LEVELS: Record<NoteDetailLevel, { label: string; emoji:
     emoji: '📋',
     description: 'Full summary with context',
     instruction: 'Write a structured summary with: a 1-sentence overview, then 4–6 bullet points covering key points, specific data/terms mentioned, and any open questions raised. Max 120 words total.',
-  },
-  verbatim: {
-    label: 'Verbatim+',
-    emoji: '📜',
-    description: 'Near-complete with analysis',
-    instruction: 'Provide a thorough summary that captures nearly all substantive content: main argument, supporting points, specific technical details, numbers, references, and a 1-sentence analytical note on significance. Max 200 words.',
   },
 };
 

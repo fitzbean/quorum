@@ -166,7 +166,7 @@ function getFallbackModelId(models: ModelOption[], preferredTier?: ModelTier): s
 function loadSavedNoteDetailLevel(): NoteTakerConfig['detailLevel'] {
   try {
     const raw = localStorage.getItem(NOTE_DETAIL_LEVEL_STORAGE_KEY);
-    return raw === 'brief' || raw === 'standard' || raw === 'detailed' || raw === 'verbatim'
+    return raw === 'terse' || raw === 'brief' || raw === 'standard' || raw === 'detailed'
       ? raw
       : 'standard';
   } catch {
@@ -225,6 +225,7 @@ export default function App() {
   const [isGeneratingAnalysis, setIsGeneratingAnalysis] = useState(false);
   const [isGeneratingRecap, setIsGeneratingRecap] = useState(false);
   const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem(TUTORIAL_STORAGE_KEY));
+  const [totalConversationCost, setTotalConversationCost] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -400,6 +401,9 @@ export default function App() {
     apiKey,
     participants,
     systemInstructions,
+    onUsageCost: (cost) => {
+      setTotalConversationCost((prev) => prev + cost);
+    },
   });
 
   useEffect(() => {
@@ -1024,6 +1028,7 @@ export default function App() {
     setInterjectText('');
     setHighlightedMessageId(null);
     setIsPaused(false);
+    setTotalConversationCost(0);
   }, [handleStop]);
 
   const handleCloseTutorial = useCallback(() => {
@@ -1200,6 +1205,11 @@ export default function App() {
   const formatClock = (totalSeconds: number) =>
     `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
 
+  const formattedConversationCost =
+    totalConversationCost < 0.01
+      ? `$${totalConversationCost.toFixed(4)}`
+      : `$${totalConversationCost.toFixed(2)}`;
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-950 text-white">
       <TutorialModal
@@ -1270,7 +1280,9 @@ export default function App() {
           </div>
 
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-sm font-semibold text-gray-200">{APP_TITLE}</h2>
+            <h2 className="truncate text-sm font-semibold text-gray-200">
+              {APP_TITLE} <span className="text-xs font-medium text-emerald-400">· {formattedConversationCost}</span>
+            </h2>
             <p className="text-xs text-gray-500">
               {selectedPreset?.label} · {Math.round(durationSeconds / 60)}min · {activeCount} active
               {noteTakerConfig.enabled ? ' · Notes on' : ''}

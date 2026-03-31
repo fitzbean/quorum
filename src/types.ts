@@ -4,7 +4,7 @@ export type PanelMember = string;
 
 export type RoleVisibility = Record<string, boolean>;
 
-export type NoteDetailLevel = 'brief' | 'standard' | 'detailed' | 'verbatim';
+export type NoteDetailLevel = 'terse' | 'brief' | 'standard' | 'detailed';
 
 export interface NoteEntry {
   id: string;
