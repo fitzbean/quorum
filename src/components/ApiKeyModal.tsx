@@ -58,7 +58,7 @@ export function ApiKeyModal({ onSave, existingKey, roleVisibility, onToggleRoleV
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full shadow-2xl relative flex flex-col"
+      <div data-tutorial="settings-window" className="bg-gray-900 border border-gray-700 rounded-2xl w-full shadow-2xl relative flex flex-col"
         style={{ maxWidth: isFirstTime ? '28rem' : '36rem', maxHeight: '90vh' }}>
 
         {/* Close button */}

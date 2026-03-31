@@ -1117,7 +1117,7 @@ export default function App() {
               )}
             </div>
           </div>
-          <div data-tutorial="context-panel" className="relative min-h-0 flex-1 overflow-hidden">
+          <div className="relative min-h-0 flex-1 overflow-hidden">
             <ContextPanel
               onSendMessage={handleUserMessage}
               onSystemInstructionsChange={setSystemInstructions}
@@ -1175,41 +1175,44 @@ export default function App() {
             <CircleHelp className="h-3.5 w-3.5 text-gray-400 transition-all group-hover:text-purple-300" />
           </button>
 
-          <button
-            onClick={() => setShowArtifactForm((v) => !v)}
-            disabled={messages.length === 0 || isGeneratingArtifact}
-            title="Generate a Markdown document from this discussion"
-            className={`group flex h-7 items-center gap-1.5 flex-shrink-0 rounded-lg border px-2 transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
-              showArtifactForm
-                ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300'
-                : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-emerald-600/50 hover:bg-gray-700 hover:text-emerald-300'
-            }`}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            <span className="text-[10px] font-medium">Doc</span>
-          </button>
+          <div data-tutorial="chat-features" className="flex items-center gap-2">
+            <button
+              onClick={() => setShowArtifactForm((v) => !v)}
+              disabled={messages.length === 0 || isGeneratingArtifact}
+              title="Generate a Markdown document from this discussion"
+              className={`group flex h-7 items-center gap-1.5 flex-shrink-0 rounded-lg border px-2 transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                showArtifactForm
+                  ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300'
+                  : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-emerald-600/50 hover:bg-gray-700 hover:text-emerald-300'
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-medium">Doc</span>
+            </button>
+
+            <button
+              onClick={handleGenerateAnalysis}
+              disabled={messages.length === 0 || isGeneratingAnalysis}
+              title="Analyse the conversation flow — turning points, revelations, disagreements, alignments"
+              className="group flex h-7 items-center gap-1.5 flex-shrink-0 rounded-lg border border-gray-700 bg-gray-800 px-2 text-gray-400 transition-all hover:border-violet-600/50 hover:bg-gray-700 hover:text-violet-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <GitBranch className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-medium">{isGeneratingAnalysis ? 'Analysing…' : 'Analysis'}</span>
+            </button>
+
+            <button
+              onClick={handleGenerateRecap}
+              disabled={messages.length === 0 || isGeneratingRecap}
+              title="Macro recap — what was covered, what was decided, what's still open"
+              className="group flex h-7 items-center gap-1.5 flex-shrink-0 rounded-lg border border-gray-700 bg-gray-800 px-2 text-gray-400 transition-all hover:border-sky-600/50 hover:bg-gray-700 hover:text-sky-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <LayoutList className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-medium">{isGeneratingRecap ? 'Recapping…' : 'Recap'}</span>
+            </button>
+          </div>
 
           <button
-            onClick={handleGenerateAnalysis}
-            disabled={messages.length === 0 || isGeneratingAnalysis}
-            title="Analyse the conversation flow — turning points, revelations, disagreements, alignments"
-            className="group flex h-7 items-center gap-1.5 flex-shrink-0 rounded-lg border border-gray-700 bg-gray-800 px-2 text-gray-400 transition-all hover:border-violet-600/50 hover:bg-gray-700 hover:text-violet-300 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <GitBranch className="h-3.5 w-3.5" />
-            <span className="text-[10px] font-medium">{isGeneratingAnalysis ? 'Analysing…' : 'Analysis'}</span>
-          </button>
-
-          <button
-            onClick={handleGenerateRecap}
-            disabled={messages.length === 0 || isGeneratingRecap}
-            title="Macro recap — what was covered, what was decided, what's still open"
-            className="group flex h-7 items-center gap-1.5 flex-shrink-0 rounded-lg border border-gray-700 bg-gray-800 px-2 text-gray-400 transition-all hover:border-sky-600/50 hover:bg-gray-700 hover:text-sky-300 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <LayoutList className="h-3.5 w-3.5" />
-            <span className="text-[10px] font-medium">{isGeneratingRecap ? 'Recapping…' : 'Recap'}</span>
-          </button>
-
-          <button
+            data-tutorial="settings-button"
             onClick={() => setShowApiModal(true)}
             title="System settings"
             className="group flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 transition-all hover:border-gray-500 hover:bg-gray-700"

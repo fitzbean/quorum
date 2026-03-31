@@ -91,6 +91,7 @@ export function ContextPanel({ onSendMessage, onSystemInstructionsChange, disabl
   return (
     <div
       {...getRootProps()}
+      data-tutorial="context-panel"
       className={`flex h-full flex-col bg-gray-900/50 ${isDragActive ? 'ring-2 ring-purple-500 ring-inset' : ''}`}
     >
       <input {...getInputProps()} />

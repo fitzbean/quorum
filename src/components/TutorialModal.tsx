@@ -48,6 +48,48 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     ],
   },
   {
+    title: 'Capture live notes',
+    description: 'The Live Notes panel tracks concise takeaways while the discussion runs. You can turn it on or off, choose how detailed the notes should be, and pick the note-taker model.',
+    accent: 'from-emerald-500 to-teal-500',
+    icon: Sparkles,
+    target: '[data-tutorial="live-notes"]',
+    placement: 'right',
+    cta: 'Show discussion setup',
+    points: [
+      'Use the toggle to enable or disable automatic notes for the current session.',
+      'Switch between note detail levels to control how compact or exhaustive the summaries are.',
+      'You can copy or clear notes from here as the session unfolds.',
+    ],
+  },
+  {
+    title: 'Open system settings',
+    description: 'Use the settings button in the top toolbar to open system settings whenever you need to update your API connection, role visibility, or shared traits.',
+    accent: 'from-amber-500 to-orange-500',
+    icon: Users,
+    target: '[data-tutorial="settings-button"]',
+    placement: 'bottom',
+    cta: 'Show chat features',
+    points: [
+      'Click this button any time to open the settings window.',
+      'Inside settings, you can update your OpenRouter key and manage role visibility.',
+      'You can also maintain the shared trait list used across participants.',
+    ],
+  },
+  {
+    title: 'Use chat features',
+    description: 'The toolbar above the conversation includes quick actions for turning the chat into structured outputs and higher-level summaries.',
+    accent: 'from-violet-600 to-sky-500',
+    icon: Wand2,
+    target: '[data-tutorial="chat-features"]',
+    placement: 'bottom',
+    cta: 'Show discussion setup',
+    points: [
+      'Doc turns the conversation into a Markdown document based on the type you specify.',
+      'Analysis surfaces turning points, disagreements, alignments, and key discussion flow.',
+      'Recap produces a macro summary of what was covered, decided, and left open.',
+    ],
+  },
+  {
     title: 'Configure the discussion',
     description: 'The top-right controls are where you define the topic, timing, model preset, and discussion style before launching the panel.',
     accent: 'from-sky-600 to-cyan-500',
@@ -244,10 +286,10 @@ function TutorialModalInner({ initialStep, onClose }: TutorialModalInnerProps) {
       const rect = element.getBoundingClientRect();
 
       setHighlightRect({
-        top: Math.max(rect.top - 8, 8),
-        left: Math.max(rect.left - 8, 8),
-        width: Math.min(rect.width + 16, window.innerWidth - 16),
-        height: Math.min(rect.height + 16, window.innerHeight - 16),
+        top: Math.max(rect.top, 8),
+        left: Math.max(rect.left, 8),
+        width: Math.min(rect.width, window.innerWidth - 16),
+        height: Math.min(rect.height, window.innerHeight - 16),
       });
     };
 
@@ -270,7 +312,7 @@ function TutorialModalInner({ initialStep, onClose }: TutorialModalInnerProps) {
           <div className="pointer-events-none fixed left-0 bg-black/72 transition-all duration-300" style={{ top: highlightRect.top, width: highlightRect.left, height: highlightRect.height }} />
           <div className="pointer-events-none fixed right-0 bg-black/72 transition-all duration-300" style={{ top: highlightRect.top, left: highlightRect.left + highlightRect.width, height: highlightRect.height }} />
           <div
-            className="pointer-events-none fixed rounded-[24px] border border-purple-300/90 shadow-[0_0_0_1px_rgba(216,180,254,0.35),0_0_22px_rgba(168,85,247,0.35),inset_0_0_0_1px_rgba(255,255,255,0.04)] transition-all duration-300"
+            className="pointer-events-none fixed rounded-[20px] ring-1 ring-purple-300/85 shadow-[0_0_18px_rgba(168,85,247,0.28)] transition-all duration-300"
             style={{
               top: highlightRect.top,
               left: highlightRect.left,
@@ -310,9 +352,6 @@ function TutorialModalInner({ initialStep, onClose }: TutorialModalInnerProps) {
                 Quick Tour · Step {currentStep + 1} of {TUTORIAL_STEPS.length}
               </p>
               <h2 className="text-2xl font-bold text-white">{step.title}</h2>
-              {step.target && (
-                <p className="mt-1 text-xs text-white/75">Following the interface to the area you need right now.</p>
-              )}
             </div>
           </div>
 

@@ -55,7 +55,7 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models 
   const tierOrder = MODEL_TIER_ORDER;
 
   return (
-    <div className="flex flex-col h-full bg-gray-900/60 border-t border-gray-700/50">
+    <div data-tutorial="live-notes" className="flex flex-col h-full bg-gray-900/60 border-t border-gray-700/50">
       <div className="px-3 py-2 border-b border-gray-700/50 bg-gray-900/80 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
