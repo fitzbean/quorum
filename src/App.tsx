@@ -1259,8 +1259,8 @@ export default function App() {
               <div className="mb-6 text-7xl animate-pulse">🎰</div>
               <h3 className="mb-3 text-2xl font-bold text-white">Welcome to {APP_NAME}</h3>
               <p className="mb-6 max-w-md text-sm leading-relaxed text-gray-400">
-                Assemble a panel of AI experts, set a brief, and let the discussion run. Steer it with interjections, 
-                take live notes, and distill the results into Markdown documents and GDDs.
+                Assemble a panel of industry experts, set a brief, and let the discussion run. Steer it with interjections, 
+                take live notes, and distill the results into analytical breakdowns and markdown documents.
                 <br /><br />
                 Build your team on the right, set a topic and discussion type, then hit{' '}
                 <strong className="text-purple-400">Start Discussion</strong>.
