@@ -1,23 +1,8 @@
 export type MessageRole = 'user' | 'assistant' | 'system';
 
-export type PanelMember =
-  | 'moderator'
-  | 'mathematician'
-  | 'psychologist'
-  | 'artist'
-  | 'game_designer'
-  | 'engineer'
-  | 'producer'
-  | 'marketing'
-  | 'narrative'
-  | 'sound'
-  | 'qa'
-  | 'legal'
-  | 'player_advocate'
-  | 'data_scientist'
-  | 'monetization';
+export type PanelMember = string;
 
-export type RoleVisibility = Record<PanelMember, boolean>;
+export type RoleVisibility = Record<string, boolean>;
 
 export type NoteDetailLevel = 'brief' | 'standard' | 'detailed' | 'verbatim';
 
@@ -117,6 +102,8 @@ export interface ParticipantPreset {
   systemPrompt: string;
   category: 'core' | 'creative' | 'technical' | 'business' | 'specialist';
   description: string;
+  defaultPersonalityTraits?: PersonalityTrait[];
+  isBuiltIn?: boolean;
 }
 
 // A spawned, active participant instance (has a unique instanceId)

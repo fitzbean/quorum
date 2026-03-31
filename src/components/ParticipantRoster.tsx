@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Info, LayoutList, Plus, X, Save, ArrowUp, Copy, Volume2, VolumeX, Users, Globe, Check } from 'lucide-react';
-import { PARTICIPANT_PRESETS } from '../constants';
 import type { ActiveParticipant, ParticipantPreset, PanelPreset, ModelOption, ModelTier, PersonalityTrait, RoleVisibility } from '../types';
 import { formatModelPricePerThousand } from '../utils/modelCatalog';
 
@@ -17,6 +16,7 @@ interface ParticipantRosterProps {
   onApplyPanelPreset: (preset: PanelPreset) => void;
   selectedPanelPreset: string | null;
   models: ModelOption[];
+  participantPresets: ParticipantPreset[];
   roleVisibility: RoleVisibility;
   savedPanelPresets: PanelPreset[];
   onSavePanelPreset: (label: string) => void;
@@ -57,6 +57,7 @@ export function ParticipantRoster({
   onApplyPanelPreset,
   selectedPanelPreset,
   models,
+  participantPresets,
   roleVisibility,
   savedPanelPresets,
   onSavePanelPreset,
@@ -75,8 +76,8 @@ export function ParticipantRoster({
   const categories = ['all', 'core', 'creative', 'technical', 'business', 'specialist'];
 
   const filteredPresets = (spawnerCategory === 'all'
-    ? PARTICIPANT_PRESETS
-    : PARTICIPANT_PRESETS.filter((p) => p.category === spawnerCategory)
+    ? participantPresets
+    : participantPresets.filter((p) => p.category === spawnerCategory)
   ).filter((p) => roleVisibility[p.role] !== false);
 
   const selectedModelTier = (selectedModelId: string): ModelTier | null => {
@@ -226,7 +227,7 @@ export function ParticipantRoster({
                         </div>
                         <div className="flex flex-wrap gap-1 mt-1.5">
                           {preset.participants.map((p, i) => {
-                            const pp = PARTICIPANT_PRESETS.find(r => r.role === p.role);
+                            const pp = participantPresets.find(r => r.role === p.role);
                             return pp ? (
                               <span key={i} className="text-[9px] bg-gray-700 px-1.5 py-0.5 rounded-full text-gray-300">
                                 {pp.emoji} {pp.label}{p.count > 1 ? ` ×${p.count}` : ''}

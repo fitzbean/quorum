@@ -14,8 +14,8 @@ import {
   DISCUSSION_PRESETS,
   NOTE_TAKER_DEFAULT_MODEL,
   DEFAULT_PANEL_INSTANCE_IDS,
-  DEFAULT_ROLE_VISIBILITY,
   ROLE_VISIBILITY_STORAGE_KEY,
+  ROLE_LIBRARY_STORAGE_KEY,
   PANEL_PRESETS_STORAGE_KEY,
   TRAITS_STORAGE_KEY,
   MODELS_STORAGE_KEY,
@@ -49,6 +49,13 @@ const STORAGE_KEY = 'slotmind_api_key';
 const TUTORIAL_STORAGE_KEY = 'quorum_tutorial_seen';
 const NOTE_DETAIL_LEVEL_STORAGE_KEY = 'quorum_note_detail_level';
 
+function buildRoleVisibilityMap(presets: ParticipantPreset[]): RoleVisibility {
+  return presets.reduce((acc, preset) => {
+    acc[preset.role] = true;
+    return acc;
+  }, {} as RoleVisibility);
+}
+
 function loadSavedTraits(): Record<string, PersonalityTrait[]> {
   try {
     const raw = localStorage.getItem(TRAITS_STORAGE_KEY);
@@ -67,6 +74,44 @@ function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+function loadParticipantPresets(): ParticipantPreset[] {
+  const builtInByRole = new Map(PARTICIPANT_PRESETS.map((preset) => [preset.role, preset]));
+
+  try {
+    const raw = localStorage.getItem(ROLE_LIBRARY_STORAGE_KEY);
+    if (!raw) return PARTICIPANT_PRESETS;
+
+    const parsed = JSON.parse(raw) as ParticipantPreset[];
+    if (!Array.isArray(parsed) || parsed.length === 0) return PARTICIPANT_PRESETS;
+
+    const normalized = parsed
+      .filter((preset): preset is ParticipantPreset => Boolean(preset?.role && preset?.label))
+      .map((preset) => {
+        const builtIn = builtInByRole.get(preset.role);
+        return {
+          ...builtIn,
+          ...preset,
+          defaultPersonalityTraits:
+            preset.defaultPersonalityTraits && preset.defaultPersonalityTraits.length > 0
+              ? preset.defaultPersonalityTraits
+              : builtIn?.defaultPersonalityTraits ?? [...DEFAULT_PERSONALITY_TRAITS],
+          isBuiltIn: builtIn ? true : preset.isBuiltIn ?? false,
+        };
+      });
+
+    const merged = [...normalized];
+    for (const preset of PARTICIPANT_PRESETS) {
+      if (!merged.some((item) => item.role === preset.role)) {
+        merged.push(preset);
+      }
+    }
+
+    return merged;
+  } catch {
+    return PARTICIPANT_PRESETS;
+  }
+}
+
 function makeParticipant(preset: ParticipantPreset, instanceId: string, label?: string, savedTraits?: Record<string, PersonalityTrait[]>, savedModels?: Record<string, string>): ActiveParticipant {
   return {
     instanceId,
@@ -79,29 +124,31 @@ function makeParticipant(preset: ParticipantPreset, instanceId: string, label?: 
     selectedModel: savedModels?.[instanceId] ?? preset.defaultModel,
     systemPrompt: preset.systemPrompt,
     isActive: true,
-    personalityTraits: savedTraits?.[instanceId] ?? [...DEFAULT_PERSONALITY_TRAITS],
+    personalityTraits: savedTraits?.[instanceId] ?? [...(preset.defaultPersonalityTraits ?? DEFAULT_PERSONALITY_TRAITS)],
   };
 }
 
-function buildDefaultPanel(): ActiveParticipant[] {
+function buildDefaultPanel(presets: ParticipantPreset[]): ActiveParticipant[] {
   const savedTraits = loadSavedTraits();
   const savedModels = loadSavedModels();
   return DEFAULT_PANEL_INSTANCE_IDS.map((instanceId) => {
     const role = instanceId.replace(/_\d+$/, '') as ActiveParticipant['role'];
-    const preset = PARTICIPANT_PRESETS.find((p) => p.role === role);
+    const preset = presets.find((p) => p.role === role);
     if (!preset) return null;
     return makeParticipant(preset, instanceId, undefined, savedTraits, savedModels);
   }).filter(Boolean) as ActiveParticipant[];
 }
 
-function loadRoleVisibility(): RoleVisibility {
+function loadRoleVisibility(presets: ParticipantPreset[]): RoleVisibility {
+  const defaults = buildRoleVisibilityMap(presets);
+
   try {
     const raw = localStorage.getItem(ROLE_VISIBILITY_STORAGE_KEY);
-    if (!raw) return DEFAULT_ROLE_VISIBILITY;
+    if (!raw) return defaults;
     const parsed = JSON.parse(raw) as Partial<RoleVisibility>;
-    return { ...DEFAULT_ROLE_VISIBILITY, ...parsed };
+    return { ...defaults, ...parsed };
   } catch {
-    return DEFAULT_ROLE_VISIBILITY;
+    return defaults;
   }
 }
 
@@ -128,12 +175,13 @@ function loadSavedNoteDetailLevel(): NoteTakerConfig['detailLevel'] {
 }
 
 export default function App() {
+  const [participantPresets, setParticipantPresets] = useState<ParticipantPreset[]>(() => loadParticipantPresets());
   const [apiKey, setApiKey] = useState<string>(() => {
     const stored = localStorage.getItem(STORAGE_KEY) || '';
     return stored.replace(/[^\x20-\x7E]/g, '').trim();
   });
   const [showApiModal, setShowApiModal] = useState(!localStorage.getItem(STORAGE_KEY));
-  const [participants, setParticipants] = useState<ActiveParticipant[]>(buildDefaultPanel);
+  const [participants, setParticipants] = useState<ActiveParticipant[]>(() => buildDefaultPanel(loadParticipantPresets()));
   const [messages, setMessages] = useState<Message[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [currentSpeakerId, setCurrentSpeakerId] = useState<string | null>(null);
@@ -160,7 +208,7 @@ export default function App() {
   });
   const [systemInstructions, setSystemInstructions] = useState('');
   const [interjectText, setInterjectText] = useState('');
-  const [roleVisibility, setRoleVisibility] = useState<RoleVisibility>(() => loadRoleVisibility());
+  const [roleVisibility, setRoleVisibility] = useState<RoleVisibility>(() => loadRoleVisibility(loadParticipantPresets()));
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [customTraits, setCustomTraits] = useState<string[]>(() => {
     try {
@@ -210,6 +258,10 @@ export default function App() {
   }, [savedPanelPresets]);
 
   useEffect(() => {
+    localStorage.setItem(ROLE_LIBRARY_STORAGE_KEY, JSON.stringify(participantPresets));
+  }, [participantPresets]);
+
+  useEffect(() => {
     const traits: Record<string, PersonalityTrait[]> = {};
     const models: Record<string, string> = {};
     for (const p of participants) {
@@ -223,6 +275,46 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(ROLE_VISIBILITY_STORAGE_KEY, JSON.stringify(roleVisibility));
   }, [roleVisibility]);
+
+  useEffect(() => {
+    const presetMap = new Map(participantPresets.map((preset) => [preset.role, preset]));
+
+    setRoleVisibility((prev) => {
+      const next = buildRoleVisibilityMap(participantPresets);
+      for (const [role, visible] of Object.entries(prev)) {
+        if (role in next) next[role] = visible;
+      }
+      return next;
+    });
+
+    setParticipants((prev) => {
+      const roleCounts: Record<string, number> = {};
+
+      return prev
+        .filter((participant) => presetMap.has(participant.role))
+        .map((participant) => {
+          const preset = presetMap.get(participant.role);
+          if (!preset) return participant;
+
+          roleCounts[participant.role] = (roleCounts[participant.role] || 0) + 1;
+          const count = roleCounts[participant.role];
+
+          return {
+            ...participant,
+            label: count > 1 ? `${preset.label} #${count}` : preset.label,
+            emoji: preset.emoji,
+            color: preset.color,
+            bgColor: preset.bgColor,
+            borderColor: preset.borderColor,
+            systemPrompt: preset.systemPrompt,
+            personalityTraits:
+              participant.personalityTraits.length > 0
+                ? participant.personalityTraits
+                : [...(preset.defaultPersonalityTraits ?? DEFAULT_PERSONALITY_TRAITS)],
+          };
+        });
+    });
+  }, [participantPresets]);
 
   useEffect(() => {
     localStorage.setItem(TRAITS_LIST_STORAGE_KEY, JSON.stringify(customTraits));
@@ -455,7 +547,7 @@ export default function App() {
     const savedModels = loadSavedModels();
 
     for (const { role, count, traits: slotTraits, models: slotModels } of panelPreset.participants) {
-      const preset = PARTICIPANT_PRESETS.find((p) => p.role === role);
+      const preset = participantPresets.find((p) => p.role === role);
       if (!preset) continue;
       if (!roleVisibility[role]) continue;
 
@@ -481,7 +573,7 @@ export default function App() {
         setDurationSeconds(discussionPreset.durationSeconds);
       }
     }
-  }, [roleVisibility]);
+  }, [participantPresets, roleVisibility]);
 
   const handleSavePanelPreset = useCallback((label: string) => {
     const roleGroups: Record<string, ActiveParticipant[]> = {};
@@ -540,6 +632,35 @@ export default function App() {
 
   const handleRemoveTrait = useCallback((trait: string) => {
     setCustomTraits((prev) => prev.filter((t) => t !== trait));
+  }, []);
+
+  const handleUpsertRolePreset = useCallback((preset: ParticipantPreset) => {
+    setParticipantPresets((prev) => {
+      const next = [...prev];
+      const index = next.findIndex((item) => item.role === preset.role);
+
+      if (index >= 0) {
+        next[index] = { ...next[index], ...preset };
+        return next;
+      }
+
+      return [...next, preset];
+    });
+  }, []);
+
+  const handleDeleteRolePreset = useCallback((role: string) => {
+    setParticipantPresets((prev) => prev.filter((preset) => preset.role !== role));
+    setRoleVisibility((prev) => {
+      const next = { ...prev };
+      delete next[role];
+      return next;
+    });
+    setSavedPanelPresets((prev) =>
+      prev.map((preset) => ({
+        ...preset,
+        participants: preset.participants.filter((participant) => participant.role !== role),
+      }))
+    );
   }, []);
 
   const handleSelectDiscussionPreset = useCallback((preset: Preset) => {
@@ -1090,8 +1211,13 @@ export default function App() {
         <ApiKeyModal
           onSave={handleSaveApiKey}
           existingKey={apiKey}
+          apiKey={apiKey}
+          participantPresets={participantPresets}
           roleVisibility={roleVisibility}
           onToggleRoleVisibility={handleToggleRoleVisibility}
+          onUpsertRolePreset={handleUpsertRolePreset}
+          onDeleteRolePreset={handleDeleteRolePreset}
+          availableModels={availableModels}
           customTraits={customTraits}
           onAddTrait={handleAddTrait}
           onRemoveTrait={handleRemoveTrait}
@@ -1442,6 +1568,7 @@ export default function App() {
             onApplyPanelPreset={handleApplyPanelPreset}
             selectedPanelPreset={selectedPanelPreset}
             models={availableModels}
+            participantPresets={participantPresets}
             roleVisibility={roleVisibility}
             savedPanelPresets={savedPanelPresets}
             onSavePanelPreset={handleSavePanelPreset}

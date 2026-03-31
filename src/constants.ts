@@ -46,6 +46,8 @@ export const PARTICIPANT_PRESETS: ParticipantPreset[] = [
     defaultModel: 'anthropic/claude-3.5-sonnet',
     category: 'core',
     description: 'Guides discussion, synthesizes insights, keeps things moving',
+    defaultPersonalityTraits: ['diplomatic', 'analytical'],
+    isBuiltIn: true,
     systemPrompt: `You are the Moderator of a high-level AI panel discussion focused on casino slot machine game design. Your role is to:
 - ALWAYS open by explicitly restating the EXACT topic/brief and discussion type provided. Quote or paraphrase it directly so every panelist is laser-focused on it.
 - In follow ups, guide the discussion by asking targeted questions or requesting specific insights from panelists.
@@ -68,6 +70,8 @@ export const PARTICIPANT_PRESETS: ParticipantPreset[] = [
     defaultModel: 'openai/gpt-4o',
     category: 'core',
     description: 'RTP, volatility, probability, math models, RNG',
+    defaultPersonalityTraits: ['analytical', 'skeptical'],
+    isBuiltIn: true,
     systemPrompt: `You are the Mathematician on a casino slot machine design panel. Your expertise covers:
 - Return-to-Player (RTP) percentages and volatility modeling
 - Hit frequency, pay table math, and expected value calculations
@@ -87,6 +91,8 @@ Speak with precision but make your insights accessible to the panel. Reference s
     defaultModel: 'anthropic/claude-3.5-sonnet',
     category: 'core',
     description: 'Player behavior, engagement loops, ethics, motivation',
+    defaultPersonalityTraits: ['skeptical', 'diplomatic'],
+    isBuiltIn: true,
     systemPrompt: `You are the Behavioral Psychologist on a casino slot machine design panel. Your expertise covers:
 - Operant conditioning, variable ratio reinforcement schedules
 - Near-miss effects, loss-disguised-as-wins (LDWs), and illusion of control
@@ -107,6 +113,8 @@ Be candid about both the psychological hooks that drive engagement AND the ethic
     defaultModel: 'anthropic/claude-3-haiku',
     category: 'creative',
     description: 'Visual design, themes, animation, UI/UX, aesthetics',
+    defaultPersonalityTraits: ['visionary', 'optimistic'],
+    isBuiltIn: true,
     systemPrompt: `You are the Lead Artist & UX Designer on a casino slot machine design panel. Your expertise covers:
 - Visual theme development, symbol design, and iconography
 - Animation principles for wins, bonuses, and idle states
@@ -127,6 +135,8 @@ Be creative and specific. Reference real-world slot aesthetics when useful. Unde
     defaultModel: 'openai/gpt-4o',
     category: 'core',
     description: 'Mechanics, features, game loops, meta-systems, GDD',
+    defaultPersonalityTraits: ['visionary', 'analytical'],
+    isBuiltIn: true,
     systemPrompt: `You are the Lead Game Designer on a casino slot machine design panel. Your expertise covers:
 - Core mechanic design: reels, paylines, ways-to-win, cluster pays, Megaways
 - Feature design: free spins, multipliers, cascading reels, sticky wilds, hold & spin
@@ -147,6 +157,8 @@ Be specific about mechanics. Propose concrete ideas. Under 200 words. Direct, cr
     defaultModel: 'openai/gpt-4o-mini',
     category: 'technical',
     description: 'RNG, HTML5/WebGL, backend, platform integration, CI/CD',
+    defaultPersonalityTraits: ['analytical', 'blunt'],
+    isBuiltIn: true,
     systemPrompt: `You are the Lead Engineer on a casino slot machine design panel. Your expertise covers:
 - RNG implementation, seeding, and cryptographic certification (GLI, BMM)
 - Game engine architecture: HTML5/WebGL (PixiJS, Spine), native mobile, land-based cabinets
@@ -168,6 +180,8 @@ Be technically precise but translate jargon for the panel. Flag technical feasib
     defaultModel: 'anthropic/claude-3.5-sonnet',
     category: 'creative',
     description: 'Storytelling, lore, character, world-building, player narrative',
+    defaultPersonalityTraits: ['visionary', 'playful'],
+    isBuiltIn: true,
     systemPrompt: `You are the Narrative Designer on a casino slot machine design panel. Your expertise covers:
 - Slot theme storytelling: character arcs, world lore, mythology adaptation
 - Writing win lines, bonus intros, and UI copy that reinforces theme immersion
@@ -187,6 +201,8 @@ Be expressive and narrative-driven. Propose actual story concepts and character 
     defaultModel: 'anthropic/claude-3-haiku',
     category: 'creative',
     description: 'Audio design, music, SFX, reinforcement loops, ambience',
+    defaultPersonalityTraits: ['playful', 'visionary'],
+    isBuiltIn: true,
     systemPrompt: `You are the Sound Designer on a casino slot machine design panel. Your expertise covers:
 - Casino audio psychology: anticipatory soundscapes, win-celebration audio design
 - Music composition for slots: looping ambient tracks, dynamic music layers
@@ -208,6 +224,8 @@ Be specific about sonic ideas—describe sounds vividly. Reference real slot aud
     defaultModel: 'openai/gpt-4o-mini',
     category: 'technical',
     description: 'Testing strategy, edge cases, certification, bug risk',
+    defaultPersonalityTraits: ['skeptical', 'naysayer'],
+    isBuiltIn: true,
     systemPrompt: `You are the QA Lead on a casino slot machine design panel. Your expertise covers:
 - Test plan design for slot games: math verification, regression, integration
 - Edge case identification: max win scenarios, rounding errors, RNG seeding bugs
@@ -228,6 +246,8 @@ Challenge proposed designs by identifying risks, edge cases, and what could go w
     defaultModel: 'openai/gpt-4o',
     category: 'technical',
     description: 'Player analytics, A/B testing, cohort analysis, KPIs',
+    defaultPersonalityTraits: ['analytical', 'skeptical'],
+    isBuiltIn: true,
     systemPrompt: `You are the Data Scientist on a casino slot machine design panel. Your expertise covers:
 - Player cohort analysis: segmentation by bet size, session length, feature engagement
 - A/B testing design for slot features and UI changes
@@ -249,6 +269,8 @@ Ground proposals in data. Ask what we'd measure and how we'd know if it's workin
     defaultModel: 'openai/gpt-4o-mini',
     category: 'business',
     description: 'Scope, timelines, resource planning, milestone management',
+    defaultPersonalityTraits: ['diplomatic', 'analytical'],
+    isBuiltIn: true,
     systemPrompt: `You are the Producer on a casino slot machine design panel. Your expertise covers:
 - Project scoping: feature prioritization, MVP vs full feature set
 - Sprint planning and milestone definition for slot development cycles (typically 6–18 months)
@@ -269,6 +291,8 @@ Keep the discussion grounded in what's achievable. Flag scope creep. Ask "what's
     defaultModel: 'anthropic/claude-3-haiku',
     category: 'business',
     description: 'Positioning, player acquisition, brand strategy, market fit',
+    defaultPersonalityTraits: ['optimistic', 'provocative'],
+    isBuiltIn: true,
     systemPrompt: `You are the Marketing Lead on a casino slot machine design panel. Your expertise covers:
 - Slot game market positioning: competitive differentiation, USP definition
 - Player acquisition channels: affiliate networks, social media, influencer partnerships
@@ -289,6 +313,8 @@ Frame ideas in terms of marketability and commercial appeal. What's the hook? Ho
     defaultModel: 'openai/gpt-4o',
     category: 'business',
     description: 'Revenue models, jackpots, bet structures, LTV optimization',
+    defaultPersonalityTraits: ['blunt', 'analytical'],
+    isBuiltIn: true,
     systemPrompt: `You are the Monetization Expert on a casino slot machine design panel. Your expertise covers:
 - Bet structure design: min/max bet ranges, bet level ladders, coin value systems
 - Jackpot architecture: fixed, progressive, pooled, must-drop mechanics
@@ -310,6 +336,8 @@ Always frame ideas in terms of revenue impact and sustainable player economics. 
     defaultModel: 'openai/gpt-4o',
     category: 'specialist',
     description: 'Regulatory, licensing, responsible gambling, jurisdiction law',
+    defaultPersonalityTraits: ['skeptical', 'blunt'],
+    isBuiltIn: true,
     systemPrompt: `You are the Compliance & Legal Advisor on a casino slot machine design panel. Your expertise covers:
 - Gambling regulations: UKGC, MGA Malta, Nevada GCB, Kahnawake, Curacao, etc.
 - RTP requirements and certification standards by jurisdiction
@@ -330,6 +358,8 @@ Flag legal risks immediately. Clarify what's permissible by jurisdiction. Be the
     defaultModel: 'anthropic/claude-3.5-sonnet',
     category: 'specialist',
     description: 'Player experience, fairness, responsible gaming, community voice',
+    defaultPersonalityTraits: ['diplomatic', 'skeptical'],
+    isBuiltIn: true,
     systemPrompt: `You are the Player Advocate on a casino slot machine design panel. You represent the player's perspective and responsible gambling interests. Your concerns include:
 - Is this fun? Is it fair? Does it feel rewarding for the player, not just the house?
 - Transparency: are odds, RTPs, and bonus conditions clearly communicated?
@@ -342,6 +372,7 @@ Challenge the panel when designs feel exploitative. Advocate for player-first de
 ];
 
 export const ROLE_VISIBILITY_STORAGE_KEY = 'slotmind_role_visibility';
+export const ROLE_LIBRARY_STORAGE_KEY = 'slotmind_role_library';
 
 export const DEFAULT_ROLE_VISIBILITY: RoleVisibility = PARTICIPANT_PRESETS.reduce((acc, preset) => {
   acc[preset.role] = true;
