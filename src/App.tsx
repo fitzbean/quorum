@@ -1167,6 +1167,8 @@ export default function App() {
             ) : null;
           })()}
 
+          <span className="text-[10px] font-medium text-gray-400">Tutorial -&gt;</span>
+
           <button
             onClick={handleRestartTutorial}
             title="Restart tutorial"
