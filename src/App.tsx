@@ -1058,6 +1058,63 @@ export default function App() {
     setShowTutorial(true);
   }, []);
 
+  const handleTestNote = useCallback(async () => {
+    if (!noteTakerConfig.enabled) return;
+
+    const testParticipant = participantsRef.current.find(p => p.isActive) ?? participantsRef.current[0];
+    if (!testParticipant) return;
+
+    const testContent = "This is a test message to verify the note-taking functionality is working correctly. The system should generate a concise summary of this text.";
+    const noteId = generateId();
+
+    setNotes((prev) => [
+      ...prev,
+      {
+        id: noteId,
+        timestamp: new Date(),
+        speakerInstanceId: testParticipant.instanceId,
+        speakerLabel: testParticipant.label,
+        speakerEmoji: testParticipant.emoji,
+        summary: '',
+        isStreaming: true,
+      } satisfies NoteEntry,
+    ]);
+
+    let noteContent = '';
+
+    try {
+      await generateNote(
+        testParticipant.label,
+        testParticipant.emoji,
+        testContent,
+        noteTakerConfig.detailLevel,
+        noteTakerConfig.selectedModel,
+        (chunk) => {
+          noteContent += chunk;
+          setNotes((prev) =>
+            prev.map((note) => (note.id === noteId ? { ...note, summary: noteContent, isStreaming: true } : note))
+          );
+        },
+        () => {
+          setNotes((prev) =>
+            prev.map((note) => (note.id === noteId ? { ...note, summary: noteContent, isStreaming: false } : note))
+          );
+        },
+        (err) => {
+          console.error('[Test note failed]', err);
+          setNotes((prev) =>
+            prev.map((note) => (note.id === noteId ? { ...note, summary: `⚠️ ${err}`, isStreaming: false } : note))
+          );
+        }
+      );
+    } catch (err) {
+      console.error('[Test note error]', err);
+      setNotes((prev) =>
+        prev.map((note) => (note.id === noteId ? { ...note, summary: `⚠️ ${err}`, isStreaming: false } : note))
+      );
+    }
+  }, [noteTakerConfig.enabled, noteTakerConfig.detailLevel, noteTakerConfig.selectedModel, generateNote]);
+
   const handleRightPanelResizeStart = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     isResizingRightPanelRef.current = true;
@@ -1287,6 +1344,7 @@ export default function App() {
             config={noteTakerConfig}
             onConfigChange={(partial) => setNoteTakerConfig((prev) => ({ ...prev, ...partial }))}
             onClearNotes={() => setNotes([])}
+            onTestNote={handleTestNote}
             models={availableModels}
           />
         </div>
@@ -1416,8 +1474,8 @@ export default function App() {
               <div className="mb-6 text-7xl animate-pulse">🎰</div>
               <h3 className="mb-3 text-2xl font-bold text-white">Welcome to {APP_NAME}</h3>
               <p className="mb-6 max-w-md text-sm leading-relaxed text-gray-400">
-                Assemble a panel of industry experts, set a brief, and let the discussion run. Steer it with interjections, 
-                take live notes, and distill the results into analytical breakdowns and markdown documents.
+                Assemble a custom built panel of industry experts, level of intelligence, supply optional context and documents, set a brief, and let the discussion run. Steer it with interjections, 
+                take live notes, and distill the results into analytical breakdowns and document artifacts.
                 <br /><br />
                 Build your team on the right, set a topic and discussion type, then hit{' '}
                 <strong className="text-purple-400">Start Discussion</strong>.

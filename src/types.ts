@@ -134,7 +134,9 @@ export type PresetType =
   | 'pitch'
   | 'theme'
   | 'feature_sprint'
-  | 'postmortem';
+  | 'postmortem'
+  | 'gdd'
+  | 'sharktank';
 
 export interface Preset {
   id: PresetType | string;

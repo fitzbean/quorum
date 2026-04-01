@@ -40,6 +40,13 @@ const TIER_COLORS: Record<string, string> = {
   'bleeding-edge': 'text-fuchsia-400',
 };
 
+const TIER_LABELS: Record<ModelTier, string> = {
+  free: 'Free',
+  balanced: 'Standard',
+  'last-generation': 'Advanced',
+  'bleeding-edge': 'Latest',
+};
+
 function getInlineModelLabel(modelName: string): string {
   return modelName.replace(/^\S+\s+/, '');
 }
@@ -377,7 +384,7 @@ export function ParticipantRoster({
                               >
                                 <div className="text-[11px] font-semibold text-white">{model.name}</div>
                                 <div className={`mt-1 text-[10px] font-medium capitalize ${TIER_COLORS[model.tier]}`}>
-                                  {model.tier} tier
+                                  {TIER_LABELS[model.tier]} tier
                                 </div>
                                 <p className="mt-1 text-[10px] leading-relaxed text-gray-300">{model.description}</p>
                                 <div className="mt-2 text-[10px] text-gray-400">

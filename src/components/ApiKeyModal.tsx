@@ -245,7 +245,7 @@ export function ApiKeyModal({
   const sanitize = (value: string) => value.replace(/[^\x20-\x7E]/g, '').trim();
   const [key, setKey] = useState(sanitize(existingKey || ''));
   const [show, setShow] = useState(false);
-  const [activeTab, setActiveTab] = useState<ModalTab>('connection');
+  const [activeTab, setActiveTab] = useState<ModalTab>('roles');
   const [newTrait, setNewTrait] = useState('');
   const [selectedRoleId, setSelectedRoleId] = useState<string>(participantPresets[0]?.role ?? '__new__');
   const [roleDraft, setRoleDraft] = useState<ParticipantPreset>(() => buildDraft(participantPresets[0] ?? null, availableModels));
@@ -591,12 +591,6 @@ export function ApiKeyModal({
         {!isFirstTime && (
           <div className="mx-8 mb-0 flex gap-0.5 rounded-xl bg-gray-800/80 p-0.5">
             <button
-              onClick={() => setActiveTab('connection')}
-              className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${activeTab === 'connection' ? 'bg-purple-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
-            >
-              <span className="flex items-center justify-center gap-1.5"><Key className="h-3.5 w-3.5" /> API Connection</span>
-            </button>
-            <button
               onClick={() => setActiveTab('roles')}
               className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${activeTab === 'roles' ? 'bg-indigo-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
             >
@@ -613,6 +607,12 @@ export function ApiKeyModal({
                 <Sliders className="h-3.5 w-3.5" /> Traits
                 <span className="rounded-full bg-gray-700 px-1.5 py-0 text-[9px] text-gray-300">{customTraits?.length ?? 0}</span>
               </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('connection')}
+              className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${activeTab === 'connection' ? 'bg-purple-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+            >
+              <span className="flex items-center justify-center gap-1.5"><Key className="h-3.5 w-3.5" /> API Connection</span>
             </button>
           </div>
         )}

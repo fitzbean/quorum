@@ -431,12 +431,22 @@ export const DISCUSSION_PRESETS: Preset[] = [
   },
   {
     id: 'gdd',
-    label: 'GDD Creation',
+    label: 'Game Design',
     emoji: '📋',
-    description: 'Collaboratively draft a Game Design Document from scratch',
+    description: 'Collaboratively work on a full Game Design concept from scratch',
     discussionPrompt:
-      'We are drafting a Game Design Document for this slot concept. Cover all key sections: game overview, theme & art direction, math model & paytable, core mechanics & bonus features, sound design, target audience, technical requirements, and regulatory considerations. Each panelist should contribute from their expertise to build a comprehensive, production-ready GDD. ' + 
+      'We are working on a full Game Design concept from scratch.  Each panelist should contribute from their expertise, with the goal being to iterate towards a production-ready design.' + 
       'GAME STRUCTURE EXPECTATIONS Every design must clearly define: Core Setup Reels (e.g., 5x3, 5x4) Lines/Ways Denoms & bets Hold targets Symbols Ordered low → high Include: Wilds Feature triggers (coins, activators, etc.) Special modifiers Base Game Must include: Core loop mechanic At least 1–2 engaging features Examples: Coin collect systems Symbol transformations Cash-on-reels Bonus Systems Hold & Spin Free Games Wheel / ladder Modifier-driven system Modifiers (Highly Encouraged) Collect All Value Boost Add Symbols Unlock rows / expand reels When generating a game or feature, always provide: Game Overview Primary Hook Core Loop Base Game Features Bonus Features Modifiers UI/UX Considerations Why It Works (Player Psychology) Risks / Complexity Flags TONE & STYLE Be decisive, not vague Prioritize what actually ships, not theory Favor proven mechanics with smart twists over novelty for novelty’s sake Optimize for fun + clarity + production feasibility',
+    preferredRoles: ['moderator', 'game_designer', 'mathematician', 'artist', 'engineer', 'narrative'],
+    durationSeconds: 300,
+  },
+  {
+    id: 'sharktank',
+    label: 'Sharktank',
+    emoji: '🦈',
+    description: 'Pitch your idea to a panel of experts who will tear it apart, pressure-test it, and decide if it is actually viable',
+    discussionPrompt:
+      'Pitch your idea to a brutal Shark Tank-style panel of experts. They are not here to be nice — they are here to pressure-test the idea, expose weak logic, challenge assumptions, rip into vague thinking, and determine whether the concept is actually viable. They should be sharp, skeptical, direct, and unafraid to call out bad ideas, weak differentiation, execution risk, lack of clarity, poor feasibility, or anything that feels soft. Strong ideas should still earn respect, but only after surviving real scrutiny. The panel should provide hard feedback, force refinement, and make clear whether the idea is dead on arrival, needs work, or has real potential.',
     preferredRoles: ['moderator', 'game_designer', 'mathematician', 'artist', 'engineer', 'narrative'],
     durationSeconds: 300,
   },

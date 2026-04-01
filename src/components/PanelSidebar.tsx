@@ -176,8 +176,8 @@ export function PanelSidebar({
         >
           <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1">
             {activeTab === 'discussion'
-              ? <><Zap className="w-3 h-3" /> Discussion Type</>
-              : <><Settings className="w-3 h-3" /> Model Presets</>}
+              ? <><Zap className="w-3 h-3" /> Discussion Settings</>
+              : <><Settings className="w-3 h-3" /> Discussion Settings</>}
           </span>
           {configOpen
             ? <ChevronDown className="w-3 h-3 text-gray-500" />
@@ -196,7 +196,7 @@ export function PanelSidebar({
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
-                <Zap className="w-3 h-3" /> Discussion
+                <Zap className="w-3 h-3" /> Discussion Type
               </button>
               <button
                 onClick={() => setActiveTab('models')}
@@ -206,7 +206,7 @@ export function PanelSidebar({
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
-                <Settings className="w-3 h-3" /> Models
+                <Settings className="w-3 h-3" /> Intelligence Level
               </button>
             </div>
 

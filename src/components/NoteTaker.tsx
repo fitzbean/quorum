@@ -9,17 +9,18 @@ interface NoteTakerProps {
   config: NoteTakerConfig;
   onConfigChange: (config: Partial<NoteTakerConfig>) => void;
   onClearNotes: () => void;
+  onTestNote: () => void;
   models: ModelOption[];
 }
 
 const TIER_LABELS: Record<ModelTier, string> = {
   free: 'Free',
-  balanced: 'Balanced',
-  'last-generation': 'Last Generation',
-  'bleeding-edge': 'Bleeding Edge',
+  balanced: 'Standard',
+  'last-generation': 'Advanced',
+  'bleeding-edge': 'Latest',
 };
 
-export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models }: NoteTakerProps) {
+export function NoteTaker({ notes, config, onConfigChange, onClearNotes, onTestNote, models }: NoteTakerProps) {
   const notesEndRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
@@ -68,6 +69,13 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes, models 
             )}
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={onTestNote}
+              title="Test note generation"
+              className="p-1 rounded text-gray-500 hover:text-emerald-400 hover:bg-gray-700/50 transition-all"
+            >
+              <NotebookPen className="w-3 h-3" />
+            </button>
             {notes.length > 0 && (
               <>
                 <button

@@ -21,6 +21,13 @@ const TIER_LABELS: Record<ModelTier, string> = {
   'bleeding-edge': '\u{1F52C}',
 };
 
+const TIER_NAMES: Record<ModelTier, string> = {
+  free: 'Free',
+  balanced: 'Standard',
+  'last-generation': 'Advanced',
+  'bleeding-edge': 'Latest',
+};
+
 export function ModelSelector({ member, onChange, models }: ModelSelectorProps) {
   const selectedTier = models.find((m) => m.id === member.selectedModel)?.tier || 'balanced';
 
@@ -40,7 +47,7 @@ export function ModelSelector({ member, onChange, models }: ModelSelectorProps) 
           return (
             <optgroup
               key={tier}
-              label={`${TIER_LABELS[tier]} ${String(tier).split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')}`}
+              label={`${TIER_LABELS[tier]} ${TIER_NAMES[tier]}`}
             >
               {tierModels.map((model) => (
                 <option key={model.id} value={model.id}>
