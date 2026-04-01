@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MODEL_PRESETS, DISCUSSION_PRESETS } from '../constants';
 import { APP_NAME, APP_BYLINE } from '../appConfig';
-import type { ActiveParticipant, Preset, ModelOption, ModelTier } from '../types';
+import type { ActiveParticipant, Preset, ModelOption, ModelTier, RoleVisibility, PanelMember } from '../types';
 import { getModelsForTier, MODEL_TIER_ORDER } from '../utils/modelCatalog';
 import { Zap, Settings, ChevronDown, ChevronRight, Play, Square, RotateCcw, Dices, Pin, Check } from 'lucide-react';
 
@@ -24,6 +24,8 @@ interface PanelSidebarProps {
   responseDelay: number;
   onResponseDelayChange: (ms: number) => void;
   selectedModelPreset: string | null;
+  roleVisibility: RoleVisibility;
+  onToggleRoleVisibility: (role: PanelMember) => void;
   availableModels: ModelOption[];
 }
 
@@ -47,6 +49,8 @@ export function PanelSidebar({
   responseDelay,
   onResponseDelayChange,
   selectedModelPreset,
+  roleVisibility,
+  onToggleRoleVisibility,
   availableModels,
 }: PanelSidebarProps) {
   const [topicOpen, setTopicOpen] = useState(true);

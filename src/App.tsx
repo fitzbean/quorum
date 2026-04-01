@@ -845,23 +845,18 @@ export default function App() {
 
       return a.label.localeCompare(b.label);
     });
+    const moderator = finalOrder.find((participant) => participant.role === 'moderator');
+    const nonModeratorParticipants = finalOrder.filter((participant) => participant.role !== 'moderator');
 
     const isContinuation = conversationHistoryRef.current.length > 0;
     let conversationHistory: Message[];
+    let startingParticipantIndex = 0;
+    let openingParticipants: typeof finalOrder = [];
 
     if (isContinuation) {
       conversationHistory = [...conversationHistoryRef.current];
-      
-      // Find the last speaker from the conversation history and rotate the order
-      // so the discussion continues with the next participant, not always the moderator
-      const lastAssistantMsg = [...conversationHistory].reverse().find(m => m.role === 'assistant' && m.instanceId);
-      if (lastAssistantMsg) {
-        const lastSpeakerIndex = finalOrder.findIndex(p => p.instanceId === lastAssistantMsg.instanceId);
-        if (lastSpeakerIndex !== -1 && lastSpeakerIndex < finalOrder.length - 1) {
-          // Rotate: move participants before and including last speaker to the end
-          const nextSpeakerIndex = lastSpeakerIndex + 1;
-          finalOrder = [...finalOrder.slice(nextSpeakerIndex), ...finalOrder.slice(0, nextSpeakerIndex)];
-        }
+      if (moderator) {
+        openingParticipants = [moderator];
       }
     } else {
       const openingUserMsg: Message = {
@@ -873,14 +868,26 @@ export default function App() {
 
       setMessages((prev) => [...prev, openingUserMsg]);
       conversationHistory = [openingUserMsg];
+
+      if (moderator) {
+        openingParticipants = [moderator];
+      }
     }
+
+    const orderedParticipants = [
+      ...nonModeratorParticipants.slice(startingParticipantIndex),
+      ...nonModeratorParticipants.slice(0, startingParticipantIndex),
+    ];
 
     while (!stopRequestedRef.current) {
       const elapsed = getElapsedDiscussionSeconds();
       if (elapsed >= durationSeconds) break;
       setElapsedSeconds(elapsed);
 
-      for (const participant of finalOrder) {
+      const participantsThisRound = openingParticipants.length > 0 ? openingParticipants : orderedParticipants;
+      openingParticipants = [];
+
+      for (const participant of participantsThisRound) {
         if (stopRequestedRef.current) break;
 
         while (isPausedRef.current && !stopRequestedRef.current) {
@@ -1193,7 +1200,7 @@ export default function App() {
     await generateRecap(
       conversationHistoryRef.current,
       topic,
-      roundCount,
+      durationSeconds,
       model,
       (chunk) => {
         fullContent += chunk;
