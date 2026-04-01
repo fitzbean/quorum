@@ -454,14 +454,15 @@ export function ApiKeyModal({
             {
               role: 'system',
               content:
-                'You classify AI collaborator roles. Return valid JSON only with keys emoji, category, and description. Category must be one of: core, creative, technical, business, specialist. Emoji must be a single fitting emoji. Description should be a concise one-line summary under 80 characters.',
+                'You classify AI collaborator roles based on their name and context. Carefully analyze the role name to generate a fitting emoji, appropriate category, and relevant description. Return valid JSON only with keys emoji, category, and description. Category must be one of: core, creative, technical, business, specialist. Emoji must be a single emoji that represents the role. Description should be a concise one-line summary under 80 characters that captures the essence of what this role does.',
             },
             {
               role: 'user',
               content:
-                `Role name: ${roleDraft.label}\n` +
-                `Description: ${roleDraft.description || 'No description yet'}\n` +
-                `System prompt: ${roleDraft.systemPrompt || 'No system prompt yet'}`,
+                `Based on the following role details, generate appropriate metadata:\n\n` +
+                `Role name: "${roleDraft.label}"\n` +
+                `Current description: ${roleDraft.description || '(none)'}\n` +
+                `System prompt: ${roleDraft.systemPrompt || '(none)'}`,
             },
           ],
           temperature: 0.4,

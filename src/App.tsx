@@ -1474,11 +1474,10 @@ export default function App() {
               <div className="mb-6 text-7xl animate-pulse">🎰</div>
               <h3 className="mb-3 text-2xl font-bold text-white">Welcome to {APP_NAME}</h3>
               <p className="mb-6 max-w-md text-sm leading-relaxed text-gray-400">
-                Assemble a custom built panel of industry experts, level of intelligence, supply optional context and documents, set a brief, and let the discussion run. Steer it with interjections, 
+                Assemble a custom built panel of industry experts, select a level of intelligence, supply optional context and documents, set a brief, and let the discussion run. Steer it with interjections, 
                 take live notes, and distill the results into analytical breakdowns and document artifacts.
                 <br /><br />
-                Build your team on the right, set a topic and discussion type, then hit{' '}
-                <strong className="text-purple-400">Start Discussion</strong>.
+                The posibiltiies are endless!
               </p>
               {participants.length > 0 ? (
                 <div className="flex max-w-lg flex-wrap justify-center gap-2">
