@@ -401,7 +401,7 @@ export const MODEL_PRESETS = MODEL_PRESET_DEFINITIONS;
 export const DISCUSSION_PRESETS: Preset[] = [
   {
     id: 'brainstorm',
-    label: 'Blue-Sky Brainstorm',
+    label: 'Brainstorm',
     emoji: '💡',
     description: 'Open ideation — push boundaries and generate novel concepts',
     discussionPrompt:
@@ -435,7 +435,8 @@ export const DISCUSSION_PRESETS: Preset[] = [
     emoji: '📋',
     description: 'Collaboratively draft a Game Design Document from scratch',
     discussionPrompt:
-      'We are drafting a Game Design Document for this slot concept. Cover all key sections: game overview, theme & art direction, math model & paytable, core mechanics & bonus features, sound design, target audience, technical requirements, and regulatory considerations. Each panelist should contribute from their expertise to build a comprehensive, production-ready GDD.',
+      'We are drafting a Game Design Document for this slot concept. Cover all key sections: game overview, theme & art direction, math model & paytable, core mechanics & bonus features, sound design, target audience, technical requirements, and regulatory considerations. Each panelist should contribute from their expertise to build a comprehensive, production-ready GDD. ' + 
+      'GAME STRUCTURE EXPECTATIONS Every design must clearly define: Core Setup Reels (e.g., 5x3, 5x4) Lines/Ways Denoms & bets Hold targets Symbols Ordered low → high Include: Wilds Feature triggers (coins, activators, etc.) Special modifiers Base Game Must include: Core loop mechanic At least 1–2 engaging features Examples: Coin collect systems Symbol transformations Cash-on-reels Bonus Systems Hold & Spin Free Games Wheel / ladder Modifier-driven system Modifiers (Highly Encouraged) Collect All Value Boost Add Symbols Unlock rows / expand reels When generating a game or feature, always provide: Game Overview Primary Hook Core Loop Base Game Features Bonus Features Modifiers UI/UX Considerations Why It Works (Player Psychology) Risks / Complexity Flags TONE & STYLE Be decisive, not vague Prioritize what actually ships, not theory Favor proven mechanics with smart twists over novelty for novelty’s sake Optimize for fun + clarity + production feasibility',
     preferredRoles: ['moderator', 'game_designer', 'mathematician', 'artist', 'engineer', 'narrative'],
     durationSeconds: 300,
   },

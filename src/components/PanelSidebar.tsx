@@ -209,30 +209,32 @@ export function PanelSidebar({
             {/* ── Discussion Type tab ── */}
             {activeTab === 'discussion' && (
               <div className="px-3">
-                <div className="grid grid-cols-2 gap-1">
-                  {DISCUSSION_PRESETS.map((preset) => {
-                    const isSelected = selectedPreset?.id === preset.id;
-                    return (
-                      <button
-                        key={preset.id}
-                        onClick={() => onSelectDiscussionPreset(preset)}
-                        disabled={isRunning}
-                        className={`text-left px-2 py-1.5 rounded-lg text-xs transition-all disabled:opacity-50 ${
-                          isSelected
-                            ? 'bg-purple-700/70 border border-purple-400/80 text-white ring-1 ring-purple-400/40'
-                            : 'bg-gray-800 border border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200'
-                        }`}
-                      >
-                        <div className="font-medium text-[11px]">{preset.emoji} {preset.label}</div>
-                        {isSelected && (
-                          <div className="text-[9px] text-purple-300 mt-0.5 leading-tight line-clamp-2">
-                            {preset.description}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
+                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                  Discussion Type
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedPreset?.id || ''}
+                    onChange={(e) => {
+                      const preset = DISCUSSION_PRESETS.find(p => p.id === e.target.value);
+                      if (preset) onSelectDiscussionPreset(preset);
+                    }}
+                    disabled={isRunning}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-2 text-xs text-gray-200 focus:outline-none focus:border-purple-500 disabled:opacity-50 appearance-none cursor-pointer"
+                  >
+                    {DISCUSSION_PRESETS.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.emoji} {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
                 </div>
+                {selectedPreset && (
+                  <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
+                    {selectedPreset.description}
+                  </p>
+                )}
               </div>
             )}
 

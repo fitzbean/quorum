@@ -20,7 +20,7 @@ export function ContextPanel({ onSendMessage, onSystemInstructionsChange, disabl
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [systemInstructions, setSystemInstructions] = useState(
-    () => localStorage.getItem(SYSTEM_INSTRUCTIONS_KEY) || ''
+    () => localStorage.getItem(SYSTEM_INSTRUCTIONS_KEY) || 'Our primary markets are pre-determined, meaning the multiplier for the turn is chosen at the beginning of the turn, and then the game must "solve" for that multiplier by deciding what is shown in the game to display that win amount.'
   );
   const [instructionsSaved, setInstructionsSaved] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

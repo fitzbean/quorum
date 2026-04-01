@@ -851,6 +851,18 @@ export default function App() {
 
     if (isContinuation) {
       conversationHistory = [...conversationHistoryRef.current];
+      
+      // Find the last speaker from the conversation history and rotate the order
+      // so the discussion continues with the next participant, not always the moderator
+      const lastAssistantMsg = [...conversationHistory].reverse().find(m => m.role === 'assistant' && m.instanceId);
+      if (lastAssistantMsg) {
+        const lastSpeakerIndex = finalOrder.findIndex(p => p.instanceId === lastAssistantMsg.instanceId);
+        if (lastSpeakerIndex !== -1 && lastSpeakerIndex < finalOrder.length - 1) {
+          // Rotate: move participants before and including last speaker to the end
+          const nextSpeakerIndex = lastSpeakerIndex + 1;
+          finalOrder = [...finalOrder.slice(nextSpeakerIndex), ...finalOrder.slice(0, nextSpeakerIndex)];
+        }
+      }
     } else {
       const openingUserMsg: Message = {
         id: generateId(),
