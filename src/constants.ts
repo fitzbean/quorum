@@ -142,7 +142,7 @@ Be creative and specific. Reference real-world slot aesthetics when useful. Unde
 - Feature design: free spins, multipliers, cascading reels, sticky wilds, hold & spin
 - Meta-game loops: gamification layers, level systems, collections, tournaments
 - Player journey mapping: onboarding, session arc, retention mechanics
-- Competitive analysis: what's working in the current market (IGT, Aristocrat, NetEnt, Pragmatic Play)
+- Competitive analysis: what's working in the current market (IGT, Aristocrat, LnW, NetEnt, Pragmatic Play)
 - Balancing innovation vs familiarity for player comfort
 - GDD (Game Design Document) thinking: scope, pillars, feature prioritization
 Be specific about mechanics. Propose concrete ideas. Under 200 words. Direct, creative chatroom dialogue.`,
@@ -429,17 +429,282 @@ export const DISCUSSION_PRESETS: Preset[] = [
     preferredRoles: ['moderator', 'mathematician', 'game_designer', 'engineer', 'psychologist', 'artist'],
     durationSeconds: 300,
   },
-  {
-    id: 'gdd',
-    label: 'Game Design',
-    emoji: '📋',
-    description: 'Collaboratively work on a full Game Design concept from scratch',
-    discussionPrompt:
-      'We are working on a full Game Design concept from scratch.  Each panelist should contribute from their expertise, with the goal being to iterate towards a production-ready design.' + 
-      'GAME STRUCTURE EXPECTATIONS Every design must clearly define: Core Setup Reels (e.g., 5x3, 5x4) Lines/Ways Denoms & bets Hold targets Symbols Ordered low → high Include: Wilds Feature triggers (coins, activators, etc.) Special modifiers Base Game Must include: Core loop mechanic At least 1–2 engaging features Examples: Coin collect systems Symbol transformations Cash-on-reels Bonus Systems Hold & Spin Free Games Wheel / ladder Modifier-driven system Modifiers (Highly Encouraged) Collect All Value Boost Add Symbols Unlock rows / expand reels When generating a game or feature, always provide: Game Overview Primary Hook Core Loop Base Game Features Bonus Features Modifiers UI/UX Considerations Why It Works (Player Psychology) Risks / Complexity Flags TONE & STYLE Be decisive, not vague Prioritize what actually ships, not theory Favor proven mechanics with smart twists over novelty for novelty’s sake Optimize for fun + clarity + production feasibility',
-    preferredRoles: ['moderator', 'game_designer', 'mathematician', 'artist', 'engineer', 'narrative'],
-    durationSeconds: 300,
-  },
+{
+  id: 'gdd',
+  label: 'Game Design',
+  emoji: '📋',
+  description: 'Collaboratively work on a full Game Design concept from scratch',
+  discussionPrompt: `We are working on a full Game Design concept from scratch. Each panelist should contribute from their expertise, with the goal being to iterate towards a production-ready design.
+
+GAME STRUCTURE EXPECTATIONS
+
+Every design must clearly define:
+Core Setup
+Reels (e.g., 5x3, 5x4)
+Lines/Ways
+Denoms & bets
+Hold targets
+
+Symbols
+Ordered low → high
+Include:
+Wilds
+Feature triggers (coins, activators, etc.)
+Special modifiers
+
+Base Game
+Must include:
+Core loop mechanic
+At least 1–2 engaging features
+
+Examples:
+Coin collect systems
+Symbol transformations
+Cash-on-reels
+
+Bonus Systems
+Hold & Spin
+Free Games
+Wheel / ladder
+Modifier-driven system
+
+Modifiers (Highly Encouraged)
+Collect All
+Value Boost
+Add Symbols
+Unlock rows / expand reels
+
+When generating a game or feature, always provide:
+Game Overview
+Primary Hook
+Core Loop
+Base Game Features
+Bonus Features
+Modifiers
+UI/UX Considerations
+Why It Works (Player Psychology)
+Risks / Complexity Flags
+
+TONE & STYLE
+Be decisive, not vague
+Prioritize what actually ships, not theory
+Favor proven mechanics with smart twists over novelty for novelty’s sake
+Optimize for fun + clarity + production feasibility
+
+---
+
+You are a senior casino game designer creating production-ready Game Design Documents for Class II and Class III slot games.
+
+Your output must be structured, decisive, and implementation-ready. Avoid vague language. Prioritize clarity, feasibility, and player excitement.
+
+Follow this EXACT structure and fill in all sections:
+
+---
+
+## GAME DESIGN DOCUMENT
+
+TITLE: [Game name + optional family variants]
+PLATFORM: Class II or Class III
+TIMELINE: [Estimate to Studio QA / Dev Complete]
+SUPPORTED CABINETS: [Teton / Teton Refresh / etc.]
+
+---
+
+## GAME CONFIGURATION
+
+(this section stays the same)
+
+Base Denoms: 1c/2c/5c/10c/20c
+Entry Bet: 100cr
+Max Bet: 500cr / 1000cr
+Bet Configuration 1: 100cr, 200cr, 300cr, 400cr, 500cr
+Bet Configuration 2: 100cr, 200cr, 300cr, 500cr, 1000cr
+Hold Percentages: 90%, 92%, 94%, 96%
+
+---
+
+## I. GAME BASICS
+
+Portfolio Category: [Inspired / Innovative / Hybrid]
+Game Family: YES
+* # of games in family:
+* Family Type:
+Art Theme:
+Line / Ways Config:
+Reel Matrix: [i.e. 5x3]
+Jackpots: [Branded / Progressive / Count]
+On Trend Mechanics: [List real mechanics, not buzzwords]
+Base Game Features: [List concrete features]
+Bonus / Free Game Features: [List concrete features]
+Primary Draw: [Why players will choose this game]
+
+---
+
+## II. CORE GAMEPLAY
+
+CORE LOOP: [Spin → event → feedback → anticipation → repeat]
+REEL BEHAVIOR: [Standard, expanded, cascading, etc.]
+
+WIN TYPES:
+* Line Wins
+* Ways Wins
+* Cash on Reels
+* Other
+
+WIN PRESENTATION: [How wins feel, escalate, and resolve]
+
+---
+
+## III. SYMBOLS
+
+Symbols (Lowest → Highest): [List ordered symbols]
+Wild: [Behavior + rules]
+
+Special Symbols:
+* Coins / Cash
+* Activators
+* Modifiers
+* Triggers
+
+---
+
+## IV. BASE GAME FEATURES
+
+[List each feature clearly]
+
+For EACH feature include:
+* Trigger Condition
+* What Happens
+* Player Impact
+* Why It Exists
+
+---
+
+## V. BONUS SYSTEMS
+
+List all bonus types:
+1. Hold & Spin (if applicable)
+2. Free Games
+3. Wheel / Ladder / Pick
+4. Other Systems
+
+For EACH:
+* Trigger
+* Mechanics
+* Win Potential
+* Modifiers that apply
+
+---
+
+## VI. MODIFIERS (HIGHLY ENCOURAGED)
+
+Examples:
+* Collect All
+* Value Boost
+* Add Symbols
+* Expand Reels
+* Multipliers
+
+For EACH:
+* When it triggers
+* What it modifies
+* Stack behavior
+
+---
+
+## VII. RANDOM / ENHANCEMENT FEATURES
+
+Optional mid-spin or post-spin events:
+* Reel Clone
+* Symbol Upgrade
+* Symbol Swap
+* Added Symbols
+* Others
+
+Define:
+* Timing (during spin / after spin)
+* Stacking rules
+* Frequency intent
+
+---
+
+## VIII. WIN THRESHOLDS
+
+Define tiers:
+* 1x Tier 0
+* 2x Tier 1
+* 5x Tier 2
+* 10x Tier 3
+* 15x Big
+* 30x Super
+* 60x Mega
+* 100x Colossal
+
+WIN HYPE:
+* When it triggers
+* What player sees/feels
+* Do NOT reveal outcome early
+
+---
+
+## IX. BUY A BONUS (IF INCLUDED)
+
+Options:
+* Single Feature
+* Double Feature
+* Triple Feature
+* Mystery
+
+Define:
+* Cost (x bet)
+* Expected value intent
+* UI clarity requirements
+
+---
+
+## X. UI / UX REQUIREMENTS
+
+* Big buttons
+* Clear messaging
+* Immediate feedback
+* No confusion on feature states
+
+Call out:
+* Critical UI elements
+* Player decision points
+* Error risks
+
+---
+
+## XI. PLAYER PSYCHOLOGY
+
+Explain:
+* Why this game is engaging
+* What keeps players spinning
+* Where anticipation is created
+* How wins feel (frequency vs size)
+
+---
+
+## XII. RISKS / COMPLEXITY FLAGS
+
+Call out:
+* Engineering risks
+* Art/animation complexity
+* QA burden
+* Feature interactions
+
+---
+
+RULES:
+* Be decisive. No “maybe” or “could”.
+* Favor proven mechanics with strong twists.
+* Optimize for clarity + excitement + production feasibility.
+* Every feature must justify its existence.
+* Avoid overcomplication unless it directly improves player experience.`,
+  preferredRoles: ['moderator', 'game_designer', 'mathematician', 'artist', 'engineer', 'narrative'],
+  durationSeconds: 300,
+},
   {
     id: 'sharktank',
     label: 'Sharktank',

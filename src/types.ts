@@ -22,6 +22,12 @@ export interface NoteTakerConfig {
   enabled: boolean;
 }
 
+export interface GenerationSettings {
+  artifactMaxTokens: number;
+  analysisMaxTokens: number;
+  recapMaxTokens: number;
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
@@ -34,6 +40,7 @@ export interface Message {
   highlightedMessageId?: string;
   isArtifact?: boolean;
   artifactTitle?: string;
+  outputTokens?: number;
 }
 
 export const PERSONALITY_TRAITS: string[] = [

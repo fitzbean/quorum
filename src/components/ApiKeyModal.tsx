@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bot, ExternalLink, Eye, EyeOff, Key, Plus, Settings, Sliders, Sparkles, Trash2, Users, X, Dices } from 'lucide-react';
 import { APP_BYLINE, APP_NAME } from '../appConfig';
-import type { ModelOption, PanelMember, ParticipantPreset, RoleVisibility } from '../types';
+import type { GenerationSettings, ModelOption, PanelMember, ParticipantPreset, RoleVisibility } from '../types';
 
-type ModalTab = 'connection' | 'roles' | 'traits';
+type ModalTab = 'modelSettings' | 'roles' | 'traits';
 type RoleEditorTab = 'info' | 'prompt';
 
 interface ApiKeyModalProps {
@@ -19,6 +19,8 @@ interface ApiKeyModalProps {
   customTraits?: string[];
   onAddTrait?: (trait: string) => void;
   onRemoveTrait?: (trait: string) => void;
+  generationSettings: GenerationSettings;
+  onGenerationSettingsChange: (settings: Partial<GenerationSettings>) => void;
 }
 
 type RoleCategory = ParticipantPreset['category'];
@@ -154,6 +156,8 @@ const ROLE_APPEARANCE_OPTIONS = [
   },
 ] as const;
 
+const TOKEN_LIMIT_OPTIONS = [2000, 3000, 4000, 6000, 8000, 12000, 16000, 24000, 32000, 48000, 64000, 96000, 128000];
+
 const DEFAULT_ROLE_TEMPLATE = {
   role: '',
   label: '',
@@ -241,6 +245,8 @@ export function ApiKeyModal({
   customTraits,
   onAddTrait,
   onRemoveTrait,
+  generationSettings,
+  onGenerationSettingsChange,
 }: ApiKeyModalProps) {
   const sanitize = (value: string) => value.replace(/[^\x20-\x7E]/g, '').trim();
   const [key, setKey] = useState(sanitize(existingKey || ''));
@@ -266,7 +272,6 @@ export function ApiKeyModal({
     ? participantPresets.filter((preset) => roleVisibility[preset.role] !== false).length
     : participantPresets.length;
   const isNewRole = selectedRoleId === '__new__';
-  const isVisible = roleVisibility ? roleVisibility[roleDraft.role] !== false : true;
   const roleExists = participantPresets.some((preset) => preset.role === roleDraft.role);
   const hasRoleChanges = isNewRole
     ? Boolean(
@@ -277,9 +282,11 @@ export function ApiKeyModal({
         roleDraft.emoji !== DEFAULT_ROLE_TEMPLATE.emoji ||
         roleDraft.category !== DEFAULT_ROLE_TEMPLATE.category ||
         roleDraft.defaultModel !== (availableModels[0]?.id ?? '') ||
-        roleDraft.defaultPersonalityTraits.join('|') !== DEFAULT_ROLE_TEMPLATE.defaultPersonalityTraits.join('|')
+        (roleDraft.defaultPersonalityTraits ?? []).join('|') !== DEFAULT_ROLE_TEMPLATE.defaultPersonalityTraits.join('|')
       )
-    : Boolean(selectedPreset) && normalizePresetForCompare(roleDraft) !== normalizePresetForCompare(selectedPreset);
+    : selectedPreset
+      ? normalizePresetForCompare(roleDraft) !== normalizePresetForCompare(selectedPreset)
+      : false;
   const canSaveRole =
     hasRoleChanges &&
     Boolean(roleDraft.role && roleDraft.label && roleDraft.description && roleDraft.systemPrompt.trim()) &&
@@ -302,21 +309,12 @@ export function ApiKeyModal({
     }
 
     setRoleDraft(buildDraft(nextPreset, availableModels));
-    setAppearanceOptionId(getAppearanceOptionId(nextPreset ?? buildDraft(null, availableModels)));
+    setAppearanceOptionId(nextPreset ? getAppearanceOptionId(nextPreset) : getAppearanceOptionId(buildDraft(null, availableModels)));
     setIsRoleIdManuallyEdited(false);
     setRoleEditorTab('info');
     setGenerationError('');
   }, [availableModels, isNewRole, participantPresets, selectedRoleId]);
 
-  const groupedRoles = useMemo(
-    () =>
-      CATEGORY_ORDER.map((category) => ({
-        category,
-        label: CATEGORY_LABELS[category],
-        presets: participantPresets.filter((preset) => preset.category === category),
-      })).filter((group) => group.presets.length > 0),
-    [participantPresets]
-  );
   const filteredLibraryPresets = useMemo(
     () =>
       libraryCategoryFilter === 'all'
@@ -354,7 +352,7 @@ export function ApiKeyModal({
       label: roleDraft.label.trim(),
       description: roleDraft.description.trim(),
       systemPrompt: roleDraft.systemPrompt.trim(),
-      defaultPersonalityTraits: roleDraft.defaultPersonalityTraits.filter(Boolean),
+      defaultPersonalityTraits: (roleDraft.defaultPersonalityTraits ?? []).filter(Boolean),
       isBuiltIn: selectedPreset?.isBuiltIn ?? false,
     };
 
@@ -395,7 +393,7 @@ export function ApiKeyModal({
                 `Role id: ${sanitizeRoleId(roleDraft.role || roleDraft.label)}\n` +
                 `Category: ${roleDraft.category}\n` +
                 `Short description: ${roleDraft.description}\n` +
-                `Default personality traits: ${roleDraft.defaultPersonalityTraits.join(', ') || 'none'}\n\n` +
+                `Default personality traits: ${(roleDraft.defaultPersonalityTraits ?? []).join(', ') || 'none'}\n\n` +
                 `Requirements:\n` +
                 `- Make the role feel expert, specific, and useful.\n` +
                 `- Tell the role what expertise it covers.\n` +
@@ -585,7 +583,7 @@ export function ApiKeyModal({
           </div>
           <div>
             <h2 className="text-xl font-bold text-white">{isFirstTime ? APP_NAME : 'System Settings'}</h2>
-            <p className="text-sm text-gray-400">{isFirstTime ? APP_BYLINE : 'API connection, role library, and traits'}</p>
+            <p className="text-sm text-gray-400">{isFirstTime ? APP_BYLINE : 'Role library, traits, and model output settings'}</p>
           </div>
         </div>
 
@@ -610,16 +608,16 @@ export function ApiKeyModal({
               </span>
             </button>
             <button
-              onClick={() => setActiveTab('connection')}
-              className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${activeTab === 'connection' ? 'bg-purple-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+              onClick={() => setActiveTab('modelSettings')}
+              className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${activeTab === 'modelSettings' ? 'bg-purple-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
             >
-              <span className="flex items-center justify-center gap-1.5"><Key className="h-3.5 w-3.5" /> API Connection</span>
+              <span className="flex items-center justify-center gap-1.5"><Key className="h-3.5 w-3.5" /> Model Settings</span>
             </button>
           </div>
         )}
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {(activeTab === 'connection' || isFirstTime) && (
+          {(activeTab === 'modelSettings' || isFirstTime) && (
             <div className="px-8 py-6">
               <div className="mb-6">
                 <div className="mb-3 flex items-center gap-2">
@@ -661,6 +659,74 @@ export function ApiKeyModal({
                   </p>
                 )}
               </div>
+
+              {!isFirstTime && (
+                <div className="mb-6 rounded-2xl border border-gray-700 bg-gray-800/60 p-4">
+                  <div className="mb-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Document Output Caps</p>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-400">
+                      These limits control the `max_tokens` sent for long-form artifact generation. Raise them if docs, analysis, or recaps are stopping too early.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <label className="space-y-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Artifacts</span>
+                      <select
+                        value={generationSettings.artifactMaxTokens}
+                        onChange={(event) =>
+                          onGenerationSettingsChange({
+                            artifactMaxTokens: Number(event.target.value),
+                          })
+                        }
+                        className="w-full rounded-xl border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                      >
+                        {TOKEN_LIMIT_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{option.toLocaleString()} tokens</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="space-y-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Analysis</span>
+                      <select
+                        value={generationSettings.analysisMaxTokens}
+                        onChange={(event) =>
+                          onGenerationSettingsChange({
+                            analysisMaxTokens: Number(event.target.value),
+                          })
+                        }
+                        className="w-full rounded-xl border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                      >
+                        {TOKEN_LIMIT_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{option.toLocaleString()} tokens</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="space-y-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Recap</span>
+                      <select
+                        value={generationSettings.recapMaxTokens}
+                        onChange={(event) =>
+                          onGenerationSettingsChange({
+                            recapMaxTokens: Number(event.target.value),
+                          })
+                        }
+                        className="w-full rounded-xl border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                      >
+                        {TOKEN_LIMIT_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{option.toLocaleString()} tokens</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <p className="mt-3 text-xs text-gray-500">
+                    Limits are stored locally in this browser and applied immediately to future artifact, analysis, and recap requests.
+                  </p>
+                </div>
+              )}
 
               <button
                 onClick={handleSave}
@@ -930,8 +996,8 @@ export function ApiKeyModal({
                                   setRoleDraft((current) => ({
                                     ...current,
                                     defaultPersonalityTraits: selected
-                                      ? current.defaultPersonalityTraits.filter((item) => item !== trait)
-                                      : [...current.defaultPersonalityTraits, trait],
+                                      ? (current.defaultPersonalityTraits ?? []).filter((item) => item !== trait)
+                                      : [...(current.defaultPersonalityTraits ?? []), trait],
                                   }))
                                 }
                                 className={`rounded-full border px-2 py-1 text-[10px] capitalize transition-all ${

@@ -38,9 +38,13 @@ import type {
   ModelTier,
   PersonalityTrait,
   PanelMember,
+  GenerationSettings,
 } from './types';
 
 const DEFAULT_PERSONALITY_TRAITS: PersonalityTrait[] = ['analytical'];
+const LEFT_PANEL_NOTES_SECTION_DEFAULT = 58;
+const LEFT_PANEL_NOTES_SECTION_MIN = 28;
+const LEFT_PANEL_NOTES_SECTION_MAX = 78;
 const RIGHT_PANEL_TOP_SECTION_DEFAULT = 58;
 const RIGHT_PANEL_TOP_SECTION_MIN = 28;
 const RIGHT_PANEL_TOP_SECTION_MAX = 78;
@@ -48,6 +52,12 @@ const RIGHT_PANEL_TOP_SECTION_MAX = 78;
 const STORAGE_KEY = 'slotmind_api_key';
 const TUTORIAL_STORAGE_KEY = 'quorum_tutorial_seen';
 const NOTE_DETAIL_LEVEL_STORAGE_KEY = 'quorum_note_detail_level';
+const GENERATION_SETTINGS_STORAGE_KEY = 'slotmind_generation_settings';
+const DEFAULT_GENERATION_SETTINGS: GenerationSettings = {
+  artifactMaxTokens: 20000,
+  analysisMaxTokens: 10000,
+  recapMaxTokens: 5000,
+};
 
 function buildRoleVisibilityMap(presets: ParticipantPreset[]): RoleVisibility {
   return presets.reduce((acc, preset) => {
@@ -72,6 +82,13 @@ function loadSavedModels(): Record<string, string> {
 
 function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function buildConversationTimingContext(elapsedSeconds: number, targetDurationSeconds?: number) {
+  return {
+    elapsedSeconds: Math.max(0, Math.floor(elapsedSeconds)),
+    targetDurationSeconds,
+  };
 }
 
 function loadParticipantPresets(): ParticipantPreset[] {
@@ -174,6 +191,28 @@ function loadSavedNoteDetailLevel(): NoteTakerConfig['detailLevel'] {
   }
 }
 
+function normalizeGenerationSettingValue(value: unknown, fallback: number): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(Math.floor(parsed), 256), 128000);
+}
+
+function loadSavedGenerationSettings(): GenerationSettings {
+  try {
+    const raw = localStorage.getItem(GENERATION_SETTINGS_STORAGE_KEY);
+    if (!raw) return DEFAULT_GENERATION_SETTINGS;
+
+    const parsed = JSON.parse(raw) as Partial<GenerationSettings>;
+    return {
+      artifactMaxTokens: normalizeGenerationSettingValue(parsed.artifactMaxTokens, DEFAULT_GENERATION_SETTINGS.artifactMaxTokens),
+      analysisMaxTokens: normalizeGenerationSettingValue(parsed.analysisMaxTokens, DEFAULT_GENERATION_SETTINGS.analysisMaxTokens),
+      recapMaxTokens: normalizeGenerationSettingValue(parsed.recapMaxTokens, DEFAULT_GENERATION_SETTINGS.recapMaxTokens),
+    };
+  } catch {
+    return DEFAULT_GENERATION_SETTINGS;
+  }
+}
+
 export default function App() {
   const [participantPresets, setParticipantPresets] = useState<ParticipantPreset[]>(() => loadParticipantPresets());
   const [apiKey, setApiKey] = useState<string>(() => {
@@ -216,6 +255,7 @@ export default function App() {
       return raw ? JSON.parse(raw) : [...PERSONALITY_TRAITS];
     } catch { return [...PERSONALITY_TRAITS]; }
   });
+  const [leftPanelNotesSectionPercent, setLeftPanelNotesSectionPercent] = useState(LEFT_PANEL_NOTES_SECTION_DEFAULT);
   const [rightPanelTopSectionPercent, setRightPanelTopSectionPercent] = useState(RIGHT_PANEL_TOP_SECTION_DEFAULT);
   const [isPaused, setIsPaused] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -226,6 +266,8 @@ export default function App() {
   const [isGeneratingRecap, setIsGeneratingRecap] = useState(false);
   const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem(TUTORIAL_STORAGE_KEY));
   const [totalConversationCost, setTotalConversationCost] = useState(0);
+  const [testingParticipantId, setTestingParticipantId] = useState<string | null>(null);
+  const [generationSettings, setGenerationSettings] = useState<GenerationSettings>(() => loadSavedGenerationSettings());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -239,6 +281,9 @@ export default function App() {
   const noteTakerConfigRef = useRef(noteTakerConfig);
   const participantsRef = useRef(participants);
   const responseDelayRef = useRef(responseDelay);
+  const leftSidebarRef = useRef<HTMLDivElement>(null);
+  const leftNotesArtifactsRef = useRef<HTMLDivElement>(null);
+  const isResizingLeftPanelRef = useRef(false);
   const rightSidebarRef = useRef<HTMLDivElement>(null);
   const isResizingRightPanelRef = useRef(false);
 
@@ -326,12 +371,25 @@ export default function App() {
   }, [noteTakerConfig.detailLevel]);
 
   useEffect(() => {
+    localStorage.setItem(GENERATION_SETTINGS_STORAGE_KEY, JSON.stringify(generationSettings));
+  }, [generationSettings]);
+
+  useEffect(() => {
     if (showTutorial) return;
     localStorage.setItem(TUTORIAL_STORAGE_KEY, 'true');
   }, [showTutorial]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
+      if (isResizingLeftPanelRef.current && leftNotesArtifactsRef.current) {
+        const bounds = leftNotesArtifactsRef.current.getBoundingClientRect();
+        if (bounds.height > 0) {
+          const rawPercent = ((event.clientY - bounds.top) / bounds.height) * 100;
+          const clampedPercent = Math.min(LEFT_PANEL_NOTES_SECTION_MAX, Math.max(LEFT_PANEL_NOTES_SECTION_MIN, rawPercent));
+          setLeftPanelNotesSectionPercent(clampedPercent);
+        }
+      }
+
       if (!isResizingRightPanelRef.current || !rightSidebarRef.current) return;
 
       const bounds = rightSidebarRef.current.getBoundingClientRect();
@@ -343,6 +401,7 @@ export default function App() {
     };
 
     const handlePointerUp = () => {
+      isResizingLeftPanelRef.current = false;
       isResizingRightPanelRef.current = false;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
@@ -401,6 +460,7 @@ export default function App() {
     apiKey,
     participants,
     systemInstructions,
+    generationSettings,
     onUsageCost: (cost) => {
       setTotalConversationCost((prev) => prev + cost);
     },
@@ -457,7 +517,10 @@ export default function App() {
     if (!container) return;
     const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
     if (isNearBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
+      });
     }
   }, [messages]);
 
@@ -700,8 +763,11 @@ export default function App() {
     const highlightedMessage = highlightedMessageId
       ? messages.find((message) => message.id === highlightedMessageId)
       : null;
+    const highlightedSpeakerLabel = highlightedMessage?.instanceId
+      ? participantsRef.current.find((participant) => participant.instanceId === highlightedMessage.instanceId)?.label
+      : null;
     const contextPrefix = highlightedMessage
-      ? `About ${highlightedMessage.speakerLabel ? `${highlightedMessage.speakerLabel}'s` : 'the selected'} message: "${highlightedMessage.content.trim().slice(0, 240)}"\n\n`
+      ? `About ${highlightedSpeakerLabel ? `${highlightedSpeakerLabel}'s` : 'the selected'} message: "${highlightedMessage.content.trim().slice(0, 240)}"\n\n`
       : '';
     const queueText = `${contextPrefix}${text}`.trim();
 
@@ -794,12 +860,14 @@ export default function App() {
         history,
         topic,
         attachmentContext,
+        buildConversationTimingContext(getElapsedDiscussionSeconds(), durationSeconds),
+        undefined,
         (chunk) => {
           fullContent += chunk;
           setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent } : m)));
         },
-        () => {
-          setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false } : m)));
+        (outputTokens) => {
+          setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false, outputTokens } : m)));
           conversationHistoryRef.current = [...history, { ...pendingMsg, content: fullContent, isStreaming: false }];
           resolve();
         },
@@ -813,7 +881,80 @@ export default function App() {
     });
 
     setCurrentSpeakerId(null);
-  }, [interjectText, highlightedMessageId, messages, topic, attachmentContext, generateMessage]);
+  }, [
+    interjectText,
+    highlightedMessageId,
+    messages,
+    topic,
+    attachmentContext,
+    durationSeconds,
+    generateMessage,
+    getElapsedDiscussionSeconds,
+  ]);
+
+  const handleTestParticipant = useCallback(async (instanceId: string) => {
+    if (isRunning || testingParticipantId) return;
+
+    const target = participantsRef.current.find((participant) => participant.instanceId === instanceId);
+    if (!target) return;
+
+    const testPrompt = 'Are you working? Reply briefly in one short sentence confirming you are responding to this test.';
+    const userMsg: Message = {
+      id: generateId(),
+      role: 'user',
+      content: `🧪 **[Model test → ${target.emoji} ${target.label}]** ${testPrompt}`,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+
+    const history = [
+      {
+        ...userMsg,
+        content: `${testPrompt}\n\nThis is an isolated connectivity test. Ignore any prior discussion context and do not reference previous topics.`,
+      },
+    ];
+    const msgId = generateId();
+    const pendingMsg: Message = {
+      id: msgId,
+      role: 'assistant',
+      panelMember: target.role,
+      instanceId: target.instanceId,
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true,
+    };
+
+    setMessages((prev) => [...prev, pendingMsg]);
+    setCurrentSpeakerId(target.instanceId);
+    setTestingParticipantId(target.instanceId);
+
+    let fullContent = '';
+    await new Promise<void>((resolve) => {
+      generateMessage(
+        target.instanceId,
+        history,
+        'Quick model connectivity check',
+        '',
+        buildConversationTimingContext(0),
+        { skipParticipantSystemPrompt: true },
+        (chunk) => {
+          fullContent += chunk;
+          setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent } : m)));
+        },
+        () => {
+          setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false } : m)));
+          resolve();
+        },
+        (err) => {
+          setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: `⚠️ *Error: ${err}*`, isStreaming: false } : m)));
+          resolve();
+        }
+      );
+    });
+
+    setCurrentSpeakerId(null);
+    setTestingParticipantId(null);
+  }, [generateMessage, isRunning, testingParticipantId]);
 
   const handleTogglePause = useCallback(() => {
     if (!isRunning) return;
@@ -935,15 +1076,17 @@ export default function App() {
             conversationHistory,
             topic,
             attachmentContext,
+            buildConversationTimingContext(getElapsedDiscussionSeconds(), durationSeconds),
+            undefined,
             (chunk) => {
               fullContent += chunk;
               setMessages((prev) =>
                 prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: true } : m))
               );
             },
-            () => {
+            (outputTokens) => {
               setMessages((prev) =>
-                prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false } : m))
+                prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false, outputTokens } : m))
               );
               conversationHistory = [...conversationHistory, { ...pendingMsg, content: fullContent, isStreaming: false }];
               resolve();
@@ -1122,6 +1265,13 @@ export default function App() {
     document.body.style.userSelect = 'none';
   }, []);
 
+  const handleLeftPanelResizeStart = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    isResizingLeftPanelRef.current = true;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
   const handleGenerateArtifact = useCallback(async () => {
     const docType = artifactDocType.trim();
     if (!docType || conversationHistoryRef.current.length === 0) return;
@@ -1155,6 +1305,7 @@ export default function App() {
       conversationHistoryRef.current,
       topic,
       docType,
+      buildConversationTimingContext(elapsedSeconds, durationSeconds),
       model,
       (chunk) => {
         fullContent += chunk;
@@ -1162,9 +1313,9 @@ export default function App() {
           prev.map((m) => (m.id === msgId ? { ...m, content: fullContent } : m))
         );
       },
-      () => {
+      (outputTokens) => {
         setMessages((prev) =>
-          prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false } : m))
+          prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false, outputTokens } : m))
         );
         setIsGeneratingArtifact(false);
       },
@@ -1175,7 +1326,7 @@ export default function App() {
         setIsGeneratingArtifact(false);
       }
     );
-  }, [artifactDocType, topic, generateArtifact]);
+  }, [artifactDocType, durationSeconds, elapsedSeconds, topic, generateArtifact]);
 
   const handleGenerateAnalysis = useCallback(async () => {
     if (conversationHistoryRef.current.length === 0) return;
@@ -1207,6 +1358,7 @@ export default function App() {
       conversationHistoryRef.current,
       topic,
       durationSeconds,
+      buildConversationTimingContext(elapsedSeconds, durationSeconds),
       model,
       (chunk) => {
         fullContent += chunk;
@@ -1214,9 +1366,9 @@ export default function App() {
           prev.map((m) => (m.id === msgId ? { ...m, content: fullContent } : m))
         );
       },
-      () => {
+      (outputTokens) => {
         setMessages((prev) =>
-          prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false } : m))
+          prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false, outputTokens } : m))
         );
         setIsGeneratingAnalysis(false);
       },
@@ -1227,7 +1379,7 @@ export default function App() {
         setIsGeneratingAnalysis(false);
       }
     );
-  }, [topic, durationSeconds, generateAnalysis]);
+  }, [topic, durationSeconds, elapsedSeconds, generateAnalysis]);
 
   const handleGenerateRecap = useCallback(async () => {
     if (conversationHistoryRef.current.length === 0) return;
@@ -1258,13 +1410,14 @@ export default function App() {
       conversationHistoryRef.current,
       topic,
       durationSeconds,
+      buildConversationTimingContext(elapsedSeconds, durationSeconds),
       model,
       (chunk) => {
         fullContent += chunk;
         setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent } : m)));
       },
-      () => {
-        setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false } : m)));
+      (outputTokens) => {
+        setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content: fullContent, isStreaming: false, outputTokens } : m)));
         setIsGeneratingRecap(false);
       },
       (err) => {
@@ -1272,7 +1425,7 @@ export default function App() {
         setIsGeneratingRecap(false);
       }
     );
-  }, [topic, durationSeconds, generateRecap]);
+  }, [topic, durationSeconds, elapsedSeconds, generateRecap]);
 
   const activeCount = participants.filter((p) => p.isActive).length;
 
@@ -1285,6 +1438,8 @@ export default function App() {
     totalConversationCost < 0.01
       ? `$${totalConversationCost.toFixed(4)}`
       : `$${totalConversationCost.toFixed(2)}`;
+
+  const artifacts = messages.filter((message) => message.isArtifact);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-950 text-white">
@@ -1307,10 +1462,27 @@ export default function App() {
           customTraits={customTraits}
           onAddTrait={handleAddTrait}
           onRemoveTrait={handleRemoveTrait}
+          generationSettings={generationSettings}
+          onGenerationSettingsChange={(partial) =>
+            setGenerationSettings((prev) => ({
+              artifactMaxTokens: normalizeGenerationSettingValue(
+                partial.artifactMaxTokens ?? prev.artifactMaxTokens,
+                prev.artifactMaxTokens
+              ),
+              analysisMaxTokens: normalizeGenerationSettingValue(
+                partial.analysisMaxTokens ?? prev.analysisMaxTokens,
+                prev.analysisMaxTokens
+              ),
+              recapMaxTokens: normalizeGenerationSettingValue(
+                partial.recapMaxTokens ?? prev.recapMaxTokens,
+                prev.recapMaxTokens
+              ),
+            }))
+          }
         />
       )}
 
-      <div data-tutorial="input-panel" className="flex w-64 flex-shrink-0 flex-col border-r border-gray-700/50 bg-gray-950">
+      <div ref={leftSidebarRef} data-tutorial="input-panel" className="flex w-64 flex-shrink-0 flex-col border-r border-gray-700/50 bg-gray-950">
         <div className="flex flex-shrink-0 flex-col" style={{ maxHeight: '40%' }}>
           <div className="border-b border-gray-700/50 bg-gray-900/80 px-3 py-2">
             <div className="flex items-center justify-between">
@@ -1341,6 +1513,10 @@ export default function App() {
         <div className="flex min-h-0 flex-1 flex-col">
           <NoteTaker
             notes={notes}
+            artifacts={artifacts}
+            notesSectionPercent={leftPanelNotesSectionPercent}
+            containerRef={leftNotesArtifactsRef}
+            onResizeHandlePointerDown={handleLeftPanelResizeStart}
             config={noteTakerConfig}
             onConfigChange={(partial) => setNoteTakerConfig((prev) => ({ ...prev, ...partial }))}
             onClearNotes={() => setNotes([])}
@@ -1350,7 +1526,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col bg-gray-950">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-950">
         <div className="flex items-center gap-3 border-b border-gray-700/50 bg-gray-900/80 px-4 py-2.5">
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gray-800 text-gray-400">
             <MessagesSquare size={16} />
@@ -1468,7 +1644,7 @@ export default function App() {
           </div>
         )}
 
-        <div ref={messagesContainerRef} data-tutorial="conversation-feed" className="flex-1 overflow-y-auto px-6 py-4">
+        <div ref={messagesContainerRef} data-tutorial="conversation-feed" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center select-none">
               <div className="mb-6 text-7xl animate-pulse">🎰</div>
@@ -1607,7 +1783,7 @@ export default function App() {
         </div>
       </div>
 
-      <div ref={rightSidebarRef} className="flex w-72 flex-shrink-0 flex-col border-l border-gray-700/50">
+      <div ref={rightSidebarRef} className="flex min-h-0 w-72 flex-shrink-0 flex-col overflow-hidden border-l border-gray-700/50">
         <div data-tutorial="discussion-controls" className="flex-shrink-0" style={{ height: `${rightPanelTopSectionPercent}%`, overflowY: 'auto' }}>
           <PanelSidebar
             participants={participants}
@@ -1647,10 +1823,12 @@ export default function App() {
             participants={participants}
             currentSpeakerId={currentSpeakerId}
             isRunning={isRunning}
+            testingParticipantId={testingParticipantId}
             onAdd={handleAddParticipant}
             onClone={handleCloneParticipant}
             onRemove={handleRemoveParticipant}
             onToggleActive={handleToggleActive}
+            onTestParticipant={handleTestParticipant}
             onModelChange={handleModelChange}
             onPersonalityTraitsChange={handlePersonalityTraitsChange}
             onApplyPanelPreset={handleApplyPanelPreset}

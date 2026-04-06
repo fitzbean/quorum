@@ -1,14 +1,25 @@
 import { useRef } from 'react';
 import { Download } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { Message, ActiveParticipant } from '../types';
 
+function slugify(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
 function downloadMarkdown(content: string, filename: string) {
+  const slug = slugify(filename);
   const blob = new Blob([content], { type: 'text/markdown' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename.endsWith('.md') ? filename : `${filename}.md`;
+  a.download = slug.endsWith('.md') ? slug : `${slug}.md`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -57,7 +68,7 @@ export function ChatMessage({ message, participants, isHighlighted = false, onHi
               </div>
             )}
             <div className="prose prose-invert prose-sm max-w-none">
-              <ReactMarkdown>{message.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
             </div>
           </div>
         </div>
@@ -126,8 +137,13 @@ export function ChatMessage({ message, participants, isHighlighted = false, onHi
             </div>
           )}
           <div className="prose prose-invert prose-sm max-w-none break-words">
-            <ReactMarkdown>{message.content || '\u00a0'}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || '\u00a0'}</ReactMarkdown>
           </div>
+          {!message.isStreaming && message.outputTokens !== undefined && (
+            <div className="mt-1.5 text-right text-[10px] text-gray-500">
+              {message.outputTokens.toLocaleString()} tokens
+            </div>
+          )}
         </div>
       </div>
     </div>

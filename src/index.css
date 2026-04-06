@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #030712;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -86,6 +98,33 @@
 .prose hr {
   border-color: #374151;
   margin: 0.75rem 0;
+}
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  display: block;
+  overflow-x: auto;
+}
+.prose thead {
+  background: rgba(17, 24, 39, 0.75);
+}
+.prose th,
+.prose td {
+  border: 1px solid #4b5563;
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+.prose th {
+  color: #f9fafb;
+  font-weight: 700;
+}
+.prose td {
+  color: #e5e7eb;
+}
+.prose tbody tr:nth-child(even) {
+  background: rgba(17, 24, 39, 0.28);
 }
 .prose a {
   color: #a78bfa;

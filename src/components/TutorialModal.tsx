@@ -134,16 +134,15 @@ const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     title: 'Run and steer the discussion',
-    description: 'Once the panel is live, use the bottom bar to pause, interject, or ask a highlighted participant to respond next.',
+    description: 'Once the panel is live, use the bottom bar to interact with the discussion.',
     accent: 'from-amber-500 to-orange-500',
     icon: Wand2,
     target: '[data-tutorial="interjection-bar"]',
     placement: 'top',
     cta: 'Finish tour',
     points: [
-      'Use the bottom bar to pause, interject, or ask a highlighted participant to respond.',
-      'Click the ? button anytime to reopen this tutorial from the beginning.',
-      'The tour now moves across the workspace so each step is shown in context.',
+      'Use the bottom bar to pause or interject with questions, context or direction.',
+      'Click the highlight button (above each response) to ask a question to a specific participant and prompt them to respond.',
     ],
   },
 ];

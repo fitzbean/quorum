@@ -1,11 +1,15 @@
 import { useRef, useEffect, useState } from 'react';
-import { ChevronDown, Trash2, Copy, Check, NotebookPen, Bot } from 'lucide-react';
-import type { NoteEntry, NoteDetailLevel, NoteTakerConfig, ModelOption, ModelTier } from '../types';
+import { ChevronDown, Trash2, Copy, Check, NotebookPen, Bot, FileText, Download } from 'lucide-react';
+import type { NoteEntry, NoteDetailLevel, NoteTakerConfig, ModelOption, ModelTier, Message } from '../types';
 import { NOTE_DETAIL_LEVELS } from '../constants';
 import { MODEL_TIER_ORDER } from '../utils/modelCatalog';
 
 interface NoteTakerProps {
   notes: NoteEntry[];
+  artifacts: Message[];
+  notesSectionPercent: number;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  onResizeHandlePointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
   config: NoteTakerConfig;
   onConfigChange: (config: Partial<NoteTakerConfig>) => void;
   onClearNotes: () => void;
@@ -20,14 +24,46 @@ const TIER_LABELS: Record<ModelTier, string> = {
   'bleeding-edge': 'Latest',
 };
 
-export function NoteTaker({ notes, config, onConfigChange, onClearNotes, onTestNote, models }: NoteTakerProps) {
+function downloadMarkdown(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename.endsWith('.md') ? filename : `${filename}.md`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export function NoteTaker({
+  notes,
+  artifacts,
+  notesSectionPercent,
+  containerRef,
+  onResizeHandlePointerDown,
+  config,
+  onConfigChange,
+  onClearNotes,
+  onTestNote,
+  models,
+}: NoteTakerProps) {
   const notesEndRef = useRef<HTMLDivElement>(null);
+  const artifactsEndRef = useRef<HTMLDivElement>(null);
+  const notesScrollRef = useRef<HTMLDivElement>(null);
+  const artifactsScrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
 
   useEffect(() => {
-    notesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = notesScrollRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
   }, [notes]);
+
+  useEffect(() => {
+    const container = artifactsScrollRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+  }, [artifacts]);
 
   const handleCopy = () => {
     if (notes.length === 0) return;
@@ -183,54 +219,122 @@ export function NoteTaker({ notes, config, onConfigChange, onClearNotes, onTestN
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-2">
-        {notes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-4">
-            <NotebookPen className="w-6 h-6 text-gray-700 mb-2" />
-            <p className="text-[10px] text-gray-600 leading-relaxed">
-              {config.enabled
-                ? 'Notes will appear here as the panel speaks...'
-                : 'Enable note-taking to capture summaries'}
-            </p>
-          </div>
-        ) : (
-          <>
-            {notes.map((note) => (
-              <div
-                key={note.id}
-                className={`rounded-lg border px-2.5 py-2 transition-all ${
-                  note.isStreaming
-                    ? 'border-emerald-600/50 bg-emerald-950/30'
-                    : 'border-gray-700/40 bg-gray-800/30'
-                }`}
-              >
-                <div className="flex items-center gap-1 mb-1">
-                  <span className="text-[10px]">{note.speakerEmoji}</span>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">
-                    {note.speakerLabel}
-                  </span>
-                  {note.isStreaming && (
-                    <span className="ml-auto flex gap-0.5">
-                      <span className="w-1 h-1 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1 h-1 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '120ms' }} />
-                      <span className="w-1 h-1 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '240ms' }} />
-                    </span>
-                  )}
-                </div>
-                <p
-                  className={`text-[11px] leading-relaxed whitespace-pre-wrap ${
-                    note.summary.startsWith('\u26A0\uFE0F')
-                      ? 'text-red-400'
-                      : 'text-gray-300'
+      <div ref={containerRef} className="flex min-h-0 flex-1 flex-col">
+        <div ref={notesScrollRef} className="min-h-0 flex-shrink-0 overflow-y-auto px-2 py-2 space-y-2" style={{ height: `${notesSectionPercent}%` }}>
+          {notes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center py-4">
+              <NotebookPen className="w-6 h-6 text-gray-700 mb-2" />
+              <p className="text-[10px] text-gray-600 leading-relaxed">
+                {config.enabled
+                  ? 'Notes will appear here as the panel speaks...'
+                  : 'Enable note-taking to capture summaries'}
+              </p>
+            </div>
+          ) : (
+            <>
+              {notes.map((note) => (
+                <div
+                  key={note.id}
+                  className={`rounded-lg border px-2.5 py-2 transition-all ${
+                    note.isStreaming
+                      ? 'border-emerald-600/50 bg-emerald-950/30'
+                      : 'border-gray-700/40 bg-gray-800/30'
                   }`}
                 >
-                  {note.summary || (note.isStreaming ? '...' : '')}
+                  <div className="flex items-center gap-1 mb-1">
+                    <span className="text-[10px]">{note.speakerEmoji}</span>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">
+                      {note.speakerLabel}
+                    </span>
+                    {note.isStreaming && (
+                      <span className="ml-auto flex gap-0.5">
+                        <span className="w-1 h-1 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1 h-1 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '120ms' }} />
+                        <span className="w-1 h-1 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '240ms' }} />
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className={`text-[11px] leading-relaxed whitespace-pre-wrap ${
+                      note.summary.startsWith('\u26A0\uFE0F')
+                        ? 'text-red-400'
+                        : 'text-gray-300'
+                    }`}
+                  >
+                    {note.summary || (note.isStreaming ? '...' : '')}
+                  </p>
+                </div>
+              ))}
+              <div ref={notesEndRef} />
+            </>
+          )}
+        </div>
+
+        <div
+          onPointerDown={onResizeHandlePointerDown}
+          className="group flex h-2 flex-shrink-0 cursor-row-resize items-center justify-center bg-gray-950/60 transition-colors hover:bg-gray-900"
+          title="Drag to resize panel"
+        >
+          <div className="h-1 w-12 rounded-full bg-gray-700/80 transition-colors group-hover:bg-purple-500/70" />
+        </div>
+
+        <div className="min-h-0 flex-1 bg-gray-950/40">
+          <div className="flex items-center justify-between border-b border-gray-700/50 bg-gray-900/70 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <FileText className="h-3.5 w-3.5 text-violet-400" />
+              <span className="text-xs font-bold text-violet-300">Artifacts</span>
+              {artifacts.length > 0 && (
+                <span className="rounded-full border border-violet-700/50 bg-violet-900/40 px-1.5 py-0.5 text-[10px] text-violet-300">
+                  {artifacts.length}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] text-gray-500">Generated during this conversation</span>
+          </div>
+          <div ref={artifactsScrollRef} className="h-full overflow-y-auto px-2 py-2 space-y-2">
+            {artifacts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-5 text-center">
+                <FileText className="mb-2 h-6 w-6 text-gray-700" />
+                <p className="text-[10px] leading-relaxed text-gray-600">
+                  Generated documents, analyses, and recaps will be listed here as they are created.
                 </p>
               </div>
-            ))}
-            <div ref={notesEndRef} />
-          </>
-        )}
+            ) : (
+              <>
+                {artifacts.map((artifact) => (
+                  <div
+                    key={artifact.id}
+                    className="rounded-lg border border-violet-700/30 bg-violet-950/20 px-2.5 py-2"
+                  >
+                    <div className="mb-1 flex items-center gap-1.5">
+                      <FileText className="h-3 w-3 text-violet-400" />
+                      <span className="truncate text-[10px] font-bold uppercase tracking-wide text-violet-300">
+                        {artifact.artifactTitle ?? 'Artifact'}
+                      </span>
+                      {!artifact.isStreaming && artifact.content && (
+                        <button
+                          onClick={() => downloadMarkdown(artifact.content, artifact.artifactTitle ?? 'artifact')}
+                          title="Download markdown artifact"
+                          className="ml-auto inline-flex items-center gap-1 rounded-md border border-violet-600/40 bg-violet-900/30 px-1.5 py-0.5 text-[9px] text-violet-200 transition-all hover:bg-violet-800/40"
+                        >
+                          <Download className="h-3 w-3" />
+                          Download
+                        </button>
+                      )}
+                      {artifact.isStreaming && (
+                        <span className="ml-auto text-[9px] text-violet-400">Generating…</span>
+                      )}
+                    </div>
+                    <p className="line-clamp-4 whitespace-pre-wrap text-[10px] leading-relaxed text-gray-300">
+                      {artifact.content || (artifact.isStreaming ? 'Generating artifact…' : 'No content yet.')}
+                    </p>
+                  </div>
+                ))}
+                <div ref={artifactsEndRef} />
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

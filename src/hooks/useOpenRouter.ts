@@ -1,21 +1,68 @@
 import { useState, useCallback, useRef } from 'react';
-import type { Message, ActiveParticipant, NoteDetailLevel } from '../types';
+import type { Message, ActiveParticipant, NoteDetailLevel, GenerationSettings } from '../types';
 import { APP_NAME } from '../appConfig';
 import { NOTE_DETAIL_LEVELS } from '../constants';
 
 interface OpenRouterStreamEvent {
   choices?: Array<{ delta?: { content?: string } }>;
-  usage?: { cost?: number | string };
+  usage?: { cost?: number | string; completion_tokens?: number };
 }
 
 interface UseOpenRouterOptions {
   apiKey: string;
   participants: ActiveParticipant[];
   systemInstructions?: string;
+  generationSettings: GenerationSettings;
   onUsageCost?: (cost: number) => void;
 }
 
-// Shared SSE streaming helper — returns the full accumulated text
+interface ConversationTimingContext {
+  elapsedSeconds: number;
+  targetDurationSeconds?: number;
+}
+
+interface GenerateMessageOptions {
+  skipParticipantSystemPrompt?: boolean;
+}
+
+function formatDurationLabel(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '0 seconds';
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts: string[] = [];
+
+  if (hours > 0) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
+  if (minutes > 0) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
+  if (seconds > 0 || parts.length === 0) parts.push(`${seconds} second${seconds === 1 ? '' : 's'}`);
+
+  return parts.join(', ');
+}
+
+function buildConversationTimingPrompt(timing?: ConversationTimingContext): string {
+  if (!timing) return '';
+
+  const elapsed = Math.max(0, Math.floor(timing.elapsedSeconds));
+  const targetDuration =
+    typeof timing.targetDurationSeconds === 'number' && Number.isFinite(timing.targetDurationSeconds)
+      ? Math.max(0, Math.floor(timing.targetDurationSeconds))
+      : null;
+
+  const progressLine =
+    targetDuration !== null && targetDuration > 0
+      ? `The conversation has been running for ${formatDurationLabel(elapsed)} out of a planned ${formatDurationLabel(targetDuration)} (${Math.min((elapsed / targetDuration) * 100, 100).toFixed(0)}% of the planned duration).`
+      : `The conversation has been running for ${formatDurationLabel(elapsed)}.`;
+
+  return (
+    '\n\n--- CONVERSATION TIMING CONTEXT ---\n' +
+    `${progressLine}\n` +
+    'Use this as real elapsed-time context when deciding pacing, when to converge, and whether a requested deliverable should be produced now.\n' +
+    '--- END CONVERSATION TIMING CONTEXT ---'
+  );
+}
+
+// Shared SSE streaming helper — returns completion token count if reported
 async function streamSSE(
   url: string,
   body: object,
@@ -23,7 +70,7 @@ async function streamSSE(
   signal: AbortSignal,
   onChunk: (chunk: string) => void,
   onUsageCost?: (cost: number) => void
-): Promise<void> {
+): Promise<number | undefined> {
   const response = await fetch(url, {
     method: 'POST',
     headers,
@@ -48,6 +95,7 @@ async function streamSSE(
   const decoder = new TextDecoder();
   let buffer = '';
   let reportedCost = false;
+  let completionTokens: number | undefined;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -73,14 +121,19 @@ async function streamSSE(
             reportedCost = true;
           }
         }
+        if (json.usage?.completion_tokens !== undefined) {
+          completionTokens = json.usage.completion_tokens;
+        }
       } catch {
         // skip malformed SSE lines
       }
     }
   }
+
+  return completionTokens;
 }
 
-export function useOpenRouter({ apiKey, participants, systemInstructions, onUsageCost }: UseOpenRouterOptions) {
+export function useOpenRouter({ apiKey, participants, systemInstructions, generationSettings, onUsageCost }: UseOpenRouterOptions) {
   const [isLoading, setIsLoading] = useState(false);
 
   // Separate abort controllers for main generation vs note generation
@@ -103,6 +156,9 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
   // Keep a ref to latest system instructions
   const systemInstructionsRef = useRef(systemInstructions || '');
   systemInstructionsRef.current = systemInstructions || '';
+
+  const generationSettingsRef = useRef(generationSettings);
+  generationSettingsRef.current = generationSettings;
 
   const stopGeneration = useCallback(() => {
     mainAbortRef.current?.abort();
@@ -133,8 +189,10 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
       conversationHistory: Message[],
       _userContext: string,
       attachmentText: string,
+      timingContext: ConversationTimingContext | undefined,
+      options: GenerateMessageOptions | undefined,
       onChunk: (chunk: string) => void,
-      onDone: () => void,
+      onDone: (outputTokens?: number) => void,
       onError: (err: string) => void
     ) => {
       const currentKey = apiKeyRef.current;
@@ -154,18 +212,27 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
       mainAbortRef.current = controller;
 
       // Build system prompt with optional user instructions and attachment context
-      let systemContent = participant.systemPrompt;
-      if (systemInstructionsRef.current) {
-        systemContent = `--- USER SYSTEM INSTRUCTIONS ---\n${systemInstructionsRef.current}\n--- END USER SYSTEM INSTRUCTIONS ---\n\n${systemContent}`;
+      let systemContent = '';
+      if (!options?.skipParticipantSystemPrompt) {
+        systemContent = participant.systemPrompt;
+        if (systemInstructionsRef.current) {
+          systemContent = `--- USER SYSTEM INSTRUCTIONS ---\n${systemInstructionsRef.current}\n--- END USER SYSTEM INSTRUCTIONS ---\n\n${systemContent}`;
+        }
       }
       if (attachmentText) {
-        systemContent += `\n\n--- REFERENCE MATERIAL PROVIDED BY USER ---\n${attachmentText}\n--- END REFERENCE MATERIAL ---`;
+        systemContent += `${systemContent ? '\n\n' : ''}--- REFERENCE MATERIAL PROVIDED BY USER ---\n${attachmentText}\n--- END REFERENCE MATERIAL ---`;
+      }
+      const timingPrompt = buildConversationTimingPrompt(timingContext);
+      if (timingPrompt) {
+        systemContent += `${systemContent ? '' : ''}${timingPrompt}`;
       }
 
       // Build message history — attribute all speakers properly
-      const messages: Array<{ role: string; content: string }> = [
-        { role: 'system', content: systemContent },
-      ];
+      const messages: Array<{ role: string; content: string }> = [];
+
+      if (systemContent) {
+        messages.push({ role: 'system', content: systemContent });
+      }
 
       for (const msg of conversationHistory) {
         if (msg.role === 'user') {
@@ -216,7 +283,7 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
       });
 
       try {
-        await streamSSE(
+        const tokens = await streamSSE(
           'https://openrouter.ai/api/v1/chat/completions',
           {
             model: participant.selectedModel,
@@ -231,7 +298,7 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
           onChunk,
           onUsageCost
         );
-        onDone();
+        onDone(tokens);
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') {
           onDone();
@@ -336,9 +403,10 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
       conversationHistory: Message[],
       topic: string,
       documentType: string,
+      timingContext: ConversationTimingContext | undefined,
       model: string,
       onChunk: (chunk: string) => void,
-      onDone: () => void,
+      onDone: (outputTokens?: number) => void,
       onError: (err: string) => void
     ) => {
       const currentKey = apiKeyRef.current;
@@ -379,20 +447,21 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
           content:
             `DISCUSSION TOPIC: ${topic}\n\n` +
             `DOCUMENT TYPE REQUESTED: ${documentType}\n\n` +
+            `${buildConversationTimingPrompt(timingContext).replace(/^\n+/, '')}\n\n` +
             `DISCUSSION TRANSCRIPT:\n\n${historyText}\n\n` +
             `---\n\nNow write the ${documentType}:`,
         },
       ];
 
       try {
-        await streamSSE(
+        const tokens = await streamSSE(
           'https://openrouter.ai/api/v1/chat/completions',
           {
             model,
             messages,
             stream: true,
             usage: { include: true },
-            max_tokens: 4000,
+            max_tokens: generationSettingsRef.current.artifactMaxTokens,
             temperature: 0.4,
           },
           sharedHeaders(`${APP_NAME} - Artifact`),
@@ -400,7 +469,7 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
           onChunk,
           onUsageCost
         );
-        onDone();
+        onDone(tokens);
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') {
           onDone();
@@ -421,9 +490,10 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
       conversationHistory: Message[],
       topic: string,
       durationSeconds: number,
+      timingContext: ConversationTimingContext | undefined,
       model: string,
       onChunk: (chunk: string) => void,
-      onDone: () => void,
+      onDone: (outputTokens?: number) => void,
       onError: (err: string) => void
     ) => {
       const currentKey = apiKeyRef.current;
@@ -470,20 +540,21 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
           content:
             `DISCUSSION TOPIC: ${topic}\n\n` +
             `DISCUSSION DURATION: ${Math.round(durationSeconds / 60)} minute${Math.round(durationSeconds / 60) !== 1 ? 's' : ''}\n\n` +
+            `${buildConversationTimingPrompt(timingContext).replace(/^\n+/, '')}\n\n` +
             `DISCUSSION TRANSCRIPT:\n\n${historyText}\n\n` +
             `---\n\nNow write the Conversation Flow Analysis:`,
         },
       ];
 
       try {
-        await streamSSE(
+        const tokens = await streamSSE(
           'https://openrouter.ai/api/v1/chat/completions',
           {
             model,
             messages,
             stream: true,
             usage: { include: true },
-            max_tokens: 4000,
+            max_tokens: generationSettingsRef.current.analysisMaxTokens,
             temperature: 0.4,
           },
           sharedHeaders(`${APP_NAME} - Analysis`),
@@ -491,7 +562,7 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
           onChunk,
           onUsageCost
         );
-        onDone();
+        onDone(tokens);
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') {
           onDone();
@@ -512,9 +583,10 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
       conversationHistory: Message[],
       topic: string,
       durationSeconds: number,
+      timingContext: ConversationTimingContext | undefined,
       model: string,
       onChunk: (chunk: string) => void,
-      onDone: () => void,
+      onDone: (outputTokens?: number) => void,
       onError: (err: string) => void
     ) => {
       const currentKey = apiKeyRef.current;
@@ -555,21 +627,29 @@ export function useOpenRouter({ apiKey, participants, systemInstructions, onUsag
           content:
             `ORIGINAL BRIEF: ${topic}\n\n` +
             `DISCUSSION DURATION: ${Math.round(durationSeconds / 60)} minute${Math.round(durationSeconds / 60) !== 1 ? 's' : ''}\n\n` +
+            `${buildConversationTimingPrompt(timingContext).replace(/^\n+/, '')}\n\n` +
             `DISCUSSION TRANSCRIPT:\n\n${historyText}\n\n` +
             `---\n\nNow write the Discussion Recap:`,
         },
       ];
 
       try {
-        await streamSSE(
+        const tokens = await streamSSE(
           'https://openrouter.ai/api/v1/chat/completions',
-          { model, messages, stream: true, usage: { include: true }, max_tokens: 3000, temperature: 0.3 },
+          {
+            model,
+            messages,
+            stream: true,
+            usage: { include: true },
+            max_tokens: generationSettingsRef.current.recapMaxTokens,
+            temperature: 0.3,
+          },
           sharedHeaders(`${APP_NAME} - Recap`),
           controller.signal,
           onChunk,
           onUsageCost
         );
-        onDone();
+        onDone(tokens);
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') {
           onDone();

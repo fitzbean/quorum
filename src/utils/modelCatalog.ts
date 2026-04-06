@@ -92,6 +92,11 @@ function isNewestMajorProviderModel(model: OpenRouterModel): boolean {
   return ageScore > 0 && !id.includes(':free');
 }
 
+function isOpenRouterNewModel(model: OpenRouterModel): boolean {
+  const source = `${model.id} ${model.name ?? ''} ${model.description ?? ''}`.toLowerCase();
+  return /\bnew\b/.test(source) && !source.includes(':free');
+}
+
 function toUtcDay(timestamp?: number): string | null {
   if (!timestamp) return null;
   return new Date(timestamp * 1000).toISOString().slice(0, 10);
@@ -130,6 +135,13 @@ function getFamilyKey(model: OpenRouterModel): string | null {
 
 function getLatestBleedingEdgeIds(models: OpenRouterModel[]): Set<string> {
   const latestModelByProvider = new Map<string, OpenRouterModel>();
+  const bleedingEdgeIds = new Set<string>();
+
+  for (const model of models) {
+    if (isOpenRouterNewModel(model)) {
+      bleedingEdgeIds.add(model.id);
+    }
+  }
 
   for (const model of models) {
     if (!isNewestMajorProviderModel(model)) continue;
@@ -143,32 +155,33 @@ function getLatestBleedingEdgeIds(models: OpenRouterModel[]): Set<string> {
     }
   }
 
-  return new Set(
-    models
-      .filter((model) => {
-        if (!isNewestMajorProviderModel(model)) return false;
+  for (const model of models) {
+    if (!isNewestMajorProviderModel(model)) continue;
 
-        const provider = getProvider(model.id);
-        if (!provider) return false;
+    const provider = getProvider(model.id);
+    if (!provider) continue;
 
-        const latestModel = latestModelByProvider.get(provider);
-        if (!latestModel) return false;
+    const latestModel = latestModelByProvider.get(provider);
+    if (!latestModel) continue;
 
-        const latestVersionKey = getVersionKey(latestModel);
-        const candidateVersionKey = getVersionKey(model);
+    const latestVersionKey = getVersionKey(latestModel);
+    const candidateVersionKey = getVersionKey(model);
 
-        if (latestVersionKey && candidateVersionKey) {
-          return latestVersionKey === candidateVersionKey;
-        }
+    if (latestVersionKey && candidateVersionKey) {
+      if (latestVersionKey === candidateVersionKey) {
+        bleedingEdgeIds.add(model.id);
+      }
+      continue;
+    }
 
-        const latestDay = toUtcDay(latestModel.created);
-        const candidateDay = toUtcDay(model.created);
-        if (!latestDay || !candidateDay) return false;
+    const latestDay = toUtcDay(latestModel.created);
+    const candidateDay = toUtcDay(model.created);
+    if (latestDay && candidateDay && latestDay === candidateDay) {
+      bleedingEdgeIds.add(model.id);
+    }
+  }
 
-        return latestDay === candidateDay;
-      })
-      .map((model) => model.id)
-  );
+  return bleedingEdgeIds;
 }
 
 function getLastGenerationIds(models: OpenRouterModel[], bleedingEdgeIds: Set<string>): Set<string> {
@@ -308,6 +321,17 @@ export function formatModelPricePerThousand(pricePerToken: number): string {
   if (perThousand >= 0.01) return `$${perThousand.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}`;
 
   return `$${perThousand.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`;
+}
+
+export function formatModelPricePerMillion(pricePerToken: number): string {
+  const perMillion = pricePerToken * 1_000_000;
+
+  if (perMillion === 0) return '$0';
+  if (perMillion >= 100) return `$${perMillion.toFixed(0)}`;
+  if (perMillion >= 1) return `$${perMillion.toFixed(2).replace(/\.00$/, '')}`;
+  if (perMillion >= 0.01) return `$${perMillion.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}`;
+
+  return `$${perMillion.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`;
 }
 
 export function buildPresetModelMap(models: ModelOption[], tier: ModelTier): Record<string, string> {

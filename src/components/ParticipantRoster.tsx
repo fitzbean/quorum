@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { Info, LayoutList, Plus, X, Save, ArrowUp, Copy, Volume2, VolumeX, Users, Globe, Check } from 'lucide-react';
+import { Info, LayoutList, Plus, X, Save, ArrowUp, Copy, Volume2, VolumeX, Users, Globe, Check, Bot } from 'lucide-react';
 import type { ActiveParticipant, ParticipantPreset, PanelPreset, ModelOption, ModelTier, PersonalityTrait, RoleVisibility } from '../types';
-import { formatModelPricePerThousand } from '../utils/modelCatalog';
+import { formatModelPricePerMillion } from '../utils/modelCatalog';
 
 interface ParticipantRosterProps {
   participants: ActiveParticipant[];
   currentSpeakerId: string | null;
   isRunning: boolean;
+  testingParticipantId: string | null;
   onAdd: (preset: ParticipantPreset) => void;
   onClone: (instanceId: string) => void;
   onRemove: (instanceId: string) => void;
   onToggleActive: (instanceId: string) => void;
+  onTestParticipant: (instanceId: string) => void;
   onModelChange: (instanceId: string, modelId: string) => void;
   onPersonalityTraitsChange: (instanceId: string, traits: PersonalityTrait[]) => void;
   onApplyPanelPreset: (preset: PanelPreset) => void;
@@ -55,10 +57,12 @@ export function ParticipantRoster({
   participants,
   currentSpeakerId,
   isRunning,
+  testingParticipantId,
   onAdd,
   onClone,
   onRemove,
   onToggleActive,
+  onTestParticipant,
   onModelChange,
   onPersonalityTraitsChange,
   onApplyPanelPreset,
@@ -106,16 +110,34 @@ export function ParticipantRoster({
   }, [infoPopupId]);
 
   const roleCounts: Record<string, number> = {};
+  const totalPromptCostPerToken = participants.reduce((sum, participant) => {
+    const model = models.find((item) => item.id === participant.selectedModel);
+    return sum + (model?.pricing.prompt ?? 0);
+  }, 0);
+  const totalCompletionCostPerToken = participants.reduce((sum, participant) => {
+    const model = models.find((item) => item.id === participant.selectedModel);
+    return sum + (model?.pricing.completion ?? 0);
+  }, 0);
 
   return (
     <div className="flex flex-col h-full bg-gray-900 border-t border-gray-700/50">
       {/* Header */}
-      <div className="px-3 py-2 border-b border-gray-700/50 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-white flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Panel</span>
-          <span className="text-xs bg-purple-700/50 text-purple-200 rounded-full px-1.5 py-0.5">
-            {participants.filter(p => p.isActive).length}/{participants.length}
-          </span>
+      <div className="px-3 py-2 border-b border-gray-700/50 flex items-start justify-between gap-2 flex-shrink-0">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-bold text-white flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Panel</span>
+            <span className="text-xs bg-purple-700/50 text-purple-200 rounded-full px-1.5 py-0.5">
+              {participants.filter(p => p.isActive).length}/{participants.length}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center gap-2 text-[10px] text-gray-400 whitespace-nowrap">
+            <span>
+              Total In: <span className="text-cyan-300">{formatModelPricePerMillion(totalPromptCostPerToken)}/1M</span>
+            </span>
+            <span>
+              Total Out: <span className="text-amber-300">{formatModelPricePerMillion(totalCompletionCostPerToken)}/1M</span>
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-1">
           {/* Presets button */}
@@ -321,6 +343,7 @@ export function ParticipantRoster({
               const modelLabel = model?.name ?? p.selectedModel.split('/')[1]?.split(':')[0] ?? p.selectedModel;
               const inlineModelLabel = getInlineModelLabel(modelLabel);
               const isInfoOpen = infoPopupId === p.instanceId;
+              const isTesting = testingParticipantId === p.instanceId;
 
               return (
                 <div
@@ -391,10 +414,10 @@ export function ParticipantRoster({
                                   Context: {model.contextLength.toLocaleString()} tokens
                                 </div>
                                 <div className="text-[10px] text-gray-400">
-                                  Input: {formatModelPricePerThousand(model.pricing.prompt)}/1K
+                                  Input: {formatModelPricePerMillion(model.pricing.prompt)}/1M
                                 </div>
                                 <div className="text-[10px] text-gray-400">
-                                  Output: {formatModelPricePerThousand(model.pricing.completion)}/1K
+                                  Output: {formatModelPricePerMillion(model.pricing.completion)}/1M
                                 </div>
                               </div>
                             )}
@@ -408,6 +431,15 @@ export function ParticipantRoster({
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => onTestParticipant(p.instanceId)}
+                        disabled={isRunning || isTesting}
+                        title="Test model"
+                        className="h-5 rounded px-1.5 flex items-center justify-center gap-1 hover:bg-gray-700 transition-all disabled:opacity-40 text-[9px] text-gray-300"
+                      >
+                        <Bot className="w-3 h-3 text-cyan-400" />
+                        <span>{isTesting ? '...' : 'Test'}</span>
+                      </button>
                       <button
                         onClick={() => onClone(p.instanceId)}
                         disabled={isRunning}
